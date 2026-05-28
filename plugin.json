@@ -1,0 +1,10 @@
+{
+    "name": "Sortium",
+    "author": "Salvador",
+    "description": "Advanced library sorting for the Steam client based on global completion metrics.",
+    "version": "0.1.0",
+    "backend": "backend/main.lua",
+    "frontend": {
+        "Library": "frontend/index.js"
+    }
+}
