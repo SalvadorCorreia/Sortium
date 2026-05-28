@@ -1,25 +1,27 @@
 {
-  "name": "sortium",
-  "version": "1.0.0",
-  "description": "Advanced library sorting for the Steam client.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/SalvadorCorreia/Sortium.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/SalvadorCorreia/Sortium/issues"
-  },
-  "homepage": "https://github.com/SalvadorCorreia/Sortium#readme",
-  "devDependencies": {
-    "@types/node": "^25.9.1",
-    "typescript": "^6.0.3"
-  }
+	"name": "sortium",
+	"version": "0.1.0",
+	"description": "Advanced library sorting for the Steam client based on global completion metrics.",
+	"author": "Salvador",
+	"license": "MIT",
+	"type": "module",
+	"main": "./frontend/index.tsx",
+	"scripts": {
+		"dev": "millennium-ttc --build dev",
+		"build": "millennium-ttc --build prod"
+	},
+	"devDependencies": {
+		"@babel/preset-env": "^7.28.3",
+		"@babel/preset-react": "^7.27.1",
+		"@babel/traverse": "^7.28.3",
+		"@types/react": "^19.1.12",
+		"@types/react-dom": "^19.1.9",
+		"@types/webpack": "^5.28.5"
+	},
+	"dependencies": {
+		"@steambrew/api": "^5.5.3",
+		"@steambrew/client": "^5.5.3",
+		"@steambrew/ttc": "^2.7.3",
+		"@steambrew/webkit": "^5.5.3"
+	}
 }

@@ -1,10 +1,9 @@
 {
-    "name": "Sortium",
-    "author": "Salvador",
+    "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/sys/plugin-schema.json",
+    "name": "sortium",
+    "common_name": "Sortium",
     "description": "Advanced library sorting for the Steam client based on global completion metrics.",
+    "author": "Salvador",
     "version": "0.1.0",
-    "backend": "backend/main.lua",
-    "frontend": {
-        "Library": "frontend/index.js"
-    }
+    "backendType": "lua"
 }
