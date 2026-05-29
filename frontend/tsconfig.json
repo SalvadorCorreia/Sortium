@@ -1,6 +1,7 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
+		"types": ["react"],
 		"jsxFactory": "window.SP_REACT.createElement",
 		"jsxFragmentFactory": "window.SP_REACT.Fragment"
 	},

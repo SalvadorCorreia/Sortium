@@ -1,0 +1,145 @@
+import { SORTIUM_ROOT_ID } from './constants';
+import { logSelectorMatches, findSortInjectionTarget } from './targets';
+import { injectSortiumStyles, removeSortiumStyles } from '../styles/injectStyles';
+import { getSortiumDropdownOptions } from '../services/streamConfig';
+import { mountSortiumDropdown, unmountSortiumDropdown } from '../ui/mount';
+import { createLogger } from '../services/logger';
+
+const logger = createLogger('observer');
+
+export interface SortiumObserverController {
+cleanup(): void;
+forceReinject(reason?: string): void;
+removeInjected(reason?: string): void;
+logSelectors(): void;
+getState(): { hasRoot: boolean; lastSelector: string | null };
+}
+
+function removeDuplicateRoots(doc: Document, keep: HTMLElement | null) {
+const roots = Array.from(doc.querySelectorAll(`#${SORTIUM_ROOT_ID}`)).filter((node): node is HTMLElement => node instanceof HTMLElement);
+for (const root of roots) {
+if (keep && root === keep) {
+continue;
+}
+
+unmountSortiumDropdown(root);
+root.remove();
+}
+}
+
+function removeSortiumRoot(doc: Document, reason: string) {
+const root = doc.getElementById(SORTIUM_ROOT_ID);
+if (!(root instanceof HTMLElement)) {
+return;
+}
+
+unmountSortiumDropdown(root);
+root.remove();
+logger.info(`Removed Sortium root (${reason}).`);
+}
+
+function ensureSortiumRoot(doc: Document, nativeSortContainer: HTMLElement): HTMLElement | null {
+const parent = nativeSortContainer.parentElement;
+if (!(parent instanceof HTMLElement)) {
+return null;
+}
+
+let root = doc.getElementById(SORTIUM_ROOT_ID);
+if (!(root instanceof HTMLElement)) {
+root = doc.createElement('div');
+root.id = SORTIUM_ROOT_ID;
+root.setAttribute('data-sortium-mounted', 'true');
+}
+
+if (root.parentElement !== parent || root.previousElementSibling !== nativeSortContainer) {
+parent.insertBefore(root, nativeSortContainer.nextSibling);
+}
+
+removeDuplicateRoots(doc, root);
+return root;
+}
+
+export function setupSortiumObserver(doc: Document): SortiumObserverController {
+injectSortiumStyles(doc);
+let observer: MutationObserver | null = null;
+let disposed = false;
+let mutationQueued = false;
+let isInjecting = false;
+let lastSelector: string | null = null;
+
+const runInjection = (reason: string) => {
+if (disposed || isInjecting) {
+return;
+}
+
+isInjecting = true;
+try {
+const target = findSortInjectionTarget(doc);
+if (!target) {
+removeSortiumRoot(doc, `${reason}:target-missing`);
+return;
+}
+
+const root = ensureSortiumRoot(doc, target.nativeSortContainer);
+if (!root) {
+logger.warn('Found native sort dropdown but could not determine parent for sidecar insertion.');
+return;
+}
+
+lastSelector = target.selectorUsed;
+mountSortiumDropdown(root, getSortiumDropdownOptions());
+logger.debug(`Injected Sortium sidecar via selector "${target.selectorUsed}" (${reason}).`);
+} finally {
+isInjecting = false;
+}
+};
+
+const queueInjection = (reason: string) => {
+if (mutationQueued) {
+return;
+}
+
+mutationQueued = true;
+queueMicrotask(() => {
+mutationQueued = false;
+runInjection(reason);
+});
+};
+
+observer = new MutationObserver(() => {
+queueInjection('mutation');
+});
+
+if (doc.body) {
+observer.observe(doc.body, { childList: true, subtree: true });
+}
+
+// Initial check ensures we inject even when no mutation is fired after hook registration.
+runInjection('initial');
+
+return {
+cleanup() {
+disposed = true;
+observer?.disconnect();
+observer = null;
+removeSortiumRoot(doc, 'cleanup');
+removeSortiumStyles(doc);
+},
+forceReinject(reason = 'manual') {
+removeSortiumRoot(doc, `force:${reason}`);
+runInjection(`force:${reason}`);
+},
+removeInjected(reason = 'manual') {
+removeSortiumRoot(doc, `manual-remove:${reason}`);
+},
+logSelectors() {
+logSelectorMatches(doc);
+},
+getState() {
+return {
+hasRoot: Boolean(doc.getElementById(SORTIUM_ROOT_ID)),
+lastSelector,
+};
+},
+};
+}
