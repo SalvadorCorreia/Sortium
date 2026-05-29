@@ -1,0 +1,8 @@
+{
+"options": [
+{ "id": "steam-native", "label": "Steam Native", "enabled": true },
+{ "id": "hltb-main-story", "label": "HLTB Main Story", "enabled": true },
+{ "id": "hltb-completionist", "label": "HLTB Completionist", "enabled": true },
+{ "id": "steamhunters-completion", "label": "SteamHunters Completion", "enabled": true }
+]
+}
