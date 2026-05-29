@@ -65,7 +65,9 @@ export function setupSortiumObserver(doc: Document): SortiumObserverController {
 injectSortiumStyles(doc);
 let observer: MutationObserver | null = null;
 let disposed = false;
+// Coalesces frequent observer events into one microtask-run injection attempt.
 let mutationQueued = false;
+// Prevents re-entrant injection while a previous reconciliation is still running.
 let isInjecting = false;
 let lastSelector: string | null = null;
 

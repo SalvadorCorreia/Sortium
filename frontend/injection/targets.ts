@@ -86,7 +86,7 @@ const headerContainer = firstVisible(HEADER_SELECTORS.flatMap((headerSelector) =
 const resolvedHeaderContainer = headerContainer ?? nativeSortContainer.parentElement;
 
 if (!headerContainer) {
-logger.warn('Header selector fallback used native sort parent. Consider updating HEADER_SELECTORS for this Steam build.');
+logger.info('Header selector fallback used native sort parent.');
 }
 
 if (resolvedHeaderContainer instanceof HTMLElement) {
