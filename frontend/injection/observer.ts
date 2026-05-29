@@ -51,7 +51,9 @@ root.id = SORTIUM_ROOT_ID;
 root.setAttribute('data-sortium-mounted', 'true');
 }
 
+// Steam frequently replaces header fragments; check both parent and sibling to keep sidecar placement stable.
 if (root.parentElement !== parent || root.previousElementSibling !== nativeSortContainer) {
+root.remove();
 parent.insertBefore(root, nativeSortContainer.nextSibling);
 }
 

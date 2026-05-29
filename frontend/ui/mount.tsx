@@ -1,20 +1,22 @@
 import { SortiumDropdown } from './SortiumDropdown';
 import type { SortiumDropdownOption } from '../services/streamConfig';
 import { createLogger } from '../services/logger';
+import type { ReactNode } from 'react';
 
 interface ReactRootLike {
-render(node: unknown): void;
+render(node: ReactNode): void;
 unmount?(): void;
 }
 
 interface LegacyReactDom {
 createRoot?: (container: HTMLElement) => ReactRootLike;
-render?: (node: unknown, container: HTMLElement) => void;
+render?: (node: ReactNode, container: HTMLElement) => void;
 unmountComponentAtNode?: (container: HTMLElement) => void;
 }
 
 const logger = createLogger('mount');
 const rootsByNode = new WeakMap<HTMLElement, ReactRootLike>();
+const legacyRenderedNodes = new WeakSet<HTMLElement>();
 
 function resolveReactDom(): LegacyReactDom | null {
 if (!window.SP_REACTDOM) {
@@ -38,11 +40,15 @@ if (typeof reactDom.createRoot === 'function') {
 root = reactDom.createRoot(mountNode);
 } else {
 root = {
-render: (node: unknown) => {
+render: (node: ReactNode) => {
 reactDom.render?.(node, mountNode);
+legacyRenderedNodes.add(mountNode);
 },
 unmount: () => {
-reactDom.unmountComponentAtNode?.(mountNode);
+if (legacyRenderedNodes.has(mountNode)) {
+	reactDom.unmountComponentAtNode?.(mountNode);
+	legacyRenderedNodes.delete(mountNode);
+}
 },
 };
 }
@@ -59,8 +65,9 @@ const root = rootsByNode.get(mountNode);
 
 if (root?.unmount) {
 root.unmount();
-} else {
+} else if (legacyRenderedNodes.has(mountNode)) {
 reactDom?.unmountComponentAtNode?.(mountNode);
+legacyRenderedNodes.delete(mountNode);
 }
 
 rootsByNode.delete(mountNode);

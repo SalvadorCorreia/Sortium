@@ -31,7 +31,7 @@ const NATIVE_SORT_SELECTORS = [
 ];
 
 function describeNode(node: HTMLElement): string {
-const classText = node.className ? `.${String(node.className).trim().replace(/\s+/g, '.')}` : '';
+const classText = node.classList.length > 0 ? `.${Array.from(node.classList).join('.')}` : '';
 return `${node.tagName.toLowerCase()}${classText}`;
 }
 
@@ -51,7 +51,7 @@ return node;
 }
 }
 
-return nodes[0] ?? null;
+return null;
 }
 
 function selectorMatches(doc: Document, selectors: string[]): SelectorMatch[] {
@@ -82,11 +82,16 @@ if (!nativeSortContainer) {
 continue;
 }
 
-const headerContainer = firstVisible(HEADER_SELECTORS.flatMap((headerSelector) => getElements(doc, headerSelector))) ?? nativeSortContainer.parentElement;
+const headerContainer = firstVisible(HEADER_SELECTORS.flatMap((headerSelector) => getElements(doc, headerSelector)));
+const resolvedHeaderContainer = headerContainer ?? nativeSortContainer.parentElement;
 
-if (headerContainer instanceof HTMLElement && nativeSortContainer.parentElement instanceof HTMLElement) {
+if (!headerContainer) {
+logger.warn('Header selector fallback used native sort parent. Consider updating HEADER_SELECTORS for this Steam build.');
+}
+
+if (resolvedHeaderContainer instanceof HTMLElement) {
 return {
-headerContainer,
+headerContainer: resolvedHeaderContainer,
 nativeSortContainer,
 selectorUsed: selector,
 };
