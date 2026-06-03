@@ -1,30 +1,58 @@
+local json = require("json")
 local logger = require("logger")
 local millennium = require("millennium")
+local settings = require("settings")
 
-function test_frontend_message_callback(message, status, count)
-	logger:info("test_frontend_message_callback called")
-	logger:info("Received args: " .. table.concat({ message, tostring(status), tostring(count) }, ", "))
+-- ==============================================================================
+-- IPC Endpoints (Globally exposed for the React Frontend via `callable`)
+-- ==============================================================================
 
-	return "Response from backend"
+function GetAvailableStreams()
+	-- settings.AVAILABLE_STREAMS is automatically populated by our registry.lua
+	return json.encode({
+		success = true,
+		data = settings.AVAILABLE_STREAMS,
+	})
 end
 
-local function on_load()
-	print("Example plugin loaded")
-	logger:info("Comparing millennium version: " .. millennium.cmp_version(millennium.version(), "2.29.3"))
+function GetSettings()
+	return json.encode({
+		success = true,
+		data = settings.load(),
+	})
+end
 
-	logger:info("Example plugin loaded with Millennium version " .. millennium.version())
+function SaveSettings(params)
+	-- The frontend passes the JSON string inside the params.settings_json property
+	local ok, new_settings = pcall(json.decode, params.settings_json)
+	if not ok then
+		logger:error("Failed to decode settings JSON from frontend")
+		return json.encode({ success = false, error = "Invalid JSON provided" })
+	end
+
+	local saved = settings.save(new_settings)
+	if saved then
+		return json.encode({ success = true })
+	else
+		return json.encode({ success = false, error = "Failed to write to disk" })
+	end
+end
+
+-- ==============================================================================
+-- Millennium Lifecycle Hooks
+-- ==============================================================================
+
+local function on_load()
+	logger:info("Sortium plugin loaded with Millennium version " .. millennium.version())
 	millennium.ready()
 end
 
--- Called when your plugin is unloaded. This happens when the plugin is disabled or Steam is shutting down.
--- NOTE: If Steam crashes or is force closed by task manager, this function may not be called -- so don't rely on it for critical cleanup.
 local function on_unload()
-	logger:info("Plugin unloaded")
+	logger:info("Sortium plugin unloaded")
 end
 
--- Called when the Steam UI has fully loaded.
 local function on_frontend_loaded()
-	logger:info("Frontend loaded")
+	logger:info("Sortium frontend loaded")
 end
 
 return {
