@@ -1,43 +1,77 @@
 import { callable } from '@steambrew/client';
-import { log, logError } from './logger';
+
+// ==============================================================================
+// Type Definitions
+// ==============================================================================
+
+export interface Metric {
+  id: string;
+  name: string;
+}
+
+export interface DataStream {
+  id: string;
+  name: string;
+  metrics: Metric[];
+}
 
 export interface PluginSettings {
-  activeDataSource: string;
-  activeSortCategory: string;
-  // cacheExpirationDays: number;
-  putUntrackedGamesAtBottom: boolean;
+  enabledStreams: Record<string, boolean>;
+  lastUsedMetric: string;
+  cacheDays: number;
+  enableLogging: boolean;
 }
 
-interface SettingsResponse {
+interface BackendResponse<T> {
   success: boolean;
   error?: string;
-  data?: PluginSettings;
+  data?: T;
 }
 
+// ==============================================================================
+// Constants & State
+// ==============================================================================
+
 const DEFAULT_SETTINGS: PluginSettings = {
-  activeDataSource: '',
-  activeSortCategory: '',
-  // cacheExpirationDays: 7,
-  putUntrackedGamesAtBottom: true,
+  enabledStreams: {
+    hltb: true,
+    sh: true,
+  },
+  lastUsedMetric: 'hltb_main',
+  cacheDays: 7,
+  enableLogging: true,
 };
 
+const GetAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
 const GetSettingsRpc = callable<[], string>('GetSettings');
 const SaveSettingsRpc = callable<[{ settings_json: string }], string>('SaveSettings');
 
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
+let cachedStreams: DataStream[] = [];
+
+// ==============================================================================
+// Service Methods
+// ==============================================================================
 
 export async function initSettings(): Promise<void> {
   try {
-    const resultJson = await GetSettingsRpc();
-    if (!resultJson) return;
-
-    const result: SettingsResponse = JSON.parse(resultJson);
-    if (result.success && result.data) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...result.data };
-      log('Settings loaded from backend');
+    const streamsJson = await GetAvailableStreamsRpc();
+    if (streamsJson) {
+      const res: BackendResponse<DataStream[]> = JSON.parse(streamsJson);
+      if (res.success && res.data) {
+        cachedStreams = res.data;
+      }
     }
-  } catch (e) {
-    logError('Failed to load settings:', e);
+
+    const settingsJson = await GetSettingsRpc();
+    if (settingsJson) {
+      const res: BackendResponse<PluginSettings> = JSON.parse(settingsJson);
+      if (res.success && res.data) {
+        cachedSettings = { ...DEFAULT_SETTINGS, ...res.data };
+      }
+    }
+  } catch (error) {
+    console.error('[Sortium] Initialization failure:', error);
   }
 }
 
@@ -45,21 +79,33 @@ export function getSettings(): PluginSettings {
   return cachedSettings;
 }
 
-export async function saveSettings(settings: PluginSettings): Promise<void> {
-  const previous = cachedSettings;
+export function getAvailableStreams(): DataStream[] {
+  return cachedStreams;
+}
+
+export async function saveSettings(settings: PluginSettings): Promise<boolean> {
+  const previousSettings = cachedSettings;
   cachedSettings = settings;
 
   try {
-    const resultJson = await SaveSettingsRpc({ settings_json: JSON.stringify(settings) });
-    if (!resultJson) return;
-
-    const result = JSON.parse(resultJson);
-    if (!result.success) {
-      logError('Failed to save settings:', result.error);
-      cachedSettings = previous;
+    const payload = { settings_json: JSON.stringify(settings) };
+    const responseJson = await SaveSettingsRpc(payload);
+    if (!responseJson) {
+      cachedSettings = previousSettings;
+      return false;
     }
-  } catch (e) {
-    logError('Failed to save settings:', e);
-    cachedSettings = previous;
+
+    const res: BackendResponse<void> = JSON.parse(responseJson);
+    if (!res.success) {
+      console.error('[Sortium] Failed to save settings to disk:', res.error);
+      cachedSettings = previousSettings;
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('[Sortium] Exception during settings save operation:', error);
+    cachedSettings = previousSettings;
+    return false;
   }
 }
