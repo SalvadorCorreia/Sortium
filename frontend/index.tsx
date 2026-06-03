@@ -2,9 +2,7 @@ import { Millennium, IconsModule, definePlugin, Field } from '@steambrew/client'
 import { setupSortiumObserver, type SortiumObserverController } from './injection/observer';
 import { exposeSortiumDebug } from './debug/tools';
 import { exposeSortiumModelDebug } from './debug/modelDebug';
-import { createLogger } from './services/logger';
-
-const logger = createLogger('index');
+import { log } from './services/logger';
 
 let activeDocument: Document | null = null;
 let activeObserver: SortiumObserverController | null = null;
@@ -30,7 +28,7 @@ function windowCreated(context: { m_strName?: string; m_popup?: { document?: Doc
   }
 
   if (context.m_strName.includes('BPM')) {
-    logger.info(`Skipping Big Picture window: ${context.m_strName}`);
+    log(`Skipping Big Picture window: ${context.m_strName}`);
     return;
   }
 
@@ -54,7 +52,7 @@ function windowCreated(context: { m_strName?: string; m_popup?: { document?: Doc
   // New (model-specific) debug API with explicit failure reasons
   removeModelDebugTools = exposeSortiumModelDebug(doc, activeObserver);
 
-  logger.info(`Sortium observer attached to window: ${context.m_strName}`);
+  log(`Sortium observer attached to window: ${context.m_strName}`);
 }
 
 const SettingsContent = () => {

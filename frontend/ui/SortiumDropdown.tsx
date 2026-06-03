@@ -1,41 +1,43 @@
-import { createLogger } from '../services/logger';
-import type { SortiumDropdownOption } from '../services/streamConfig';
+import { Dropdown } from '@steambrew/client';
+import { getSettings, saveSettings } from '../services/settings';
+import { log } from '../services/logger';
 
-const logger = createLogger('ui');
-const EMPTY_OPTION_FALLBACK: SortiumDropdownOption[] = [{ id: 'no-options', label: 'No streams configured', enabled: true }];
+export function SortiumDropdown() {
+  const settings = getSettings();
+  
+  // Initialize state from our settings, defaulting to 'main_story' if empty
+  const [selected, setSelected] = window.SP_REACT.useState<string>(
+    settings.activeSortCategory || 'main_story'
+  );
 
-export interface SortiumDropdownProps {
-options: SortiumDropdownOption[];
-}
+  // Steambrew's Dropdown component expects an array of objects with 'label' and 'data'
+  const options = [
+    { label: 'HLTB: Main Story', data: 'main_story' },
+    { label: 'HLTB: Main + Extras', data: 'main_extra' },
+    { label: 'HLTB: Completionist', data: 'completionist' },
+    { label: 'SteamHunters: Median Time', data: 'median_time' },
+  ];
 
-export function SortiumDropdown({ options }: SortiumDropdownProps) {
-const safeOptions = options.length > 0 ? options : EMPTY_OPTION_FALLBACK;
-const [selectedId, setSelectedId] = window.SP_REACT.useState<string>(safeOptions[0]?.id ?? '');
+  // Steam's Dropdown passes the 'data' value directly into the onChange handler
+  const handleChange = (selectedData: string) => {
+    setSelected(selectedData);
+    
+    // Save to our backend settings
+    saveSettings({ ...settings, activeSortCategory: selectedData });
+    log('Sort category changed to', selectedData);
+  };
 
-window.SP_REACT.useEffect(() => {
-if (!safeOptions.some((option) => option.id === selectedId)) {
-setSelectedId(safeOptions[0]?.id ?? '');
-}
-}, [safeOptions, selectedId]);
-
-return (
-<div className="sortium-dropdown-shell" title="Sortium custom sorting streams">
-<span className="sortium-dropdown-label">Sortium</span>
-<select
-className="sortium-dropdown-select"
-value={selectedId}
-onChange={(event: { target: HTMLSelectElement }) => {
-const nextValue = event.target.value;
-setSelectedId(nextValue);
-logger.info('Selected dropdown option', nextValue);
-}}
->
-{safeOptions.map((option) => (
-<option key={option.id} value={option.id}>
-{option.label}
-</option>
-))}
-</select>
-</div>
-);
+  return (
+    <div className="sortium-dropdown-shell" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span className="sortium-dropdown-label" style={{ color: '#b8b6b4', textTransform: 'uppercase', fontSize: '12px' }}>
+        Sortium
+      </span>
+      <Dropdown
+        rgOptions={options}
+        selectedOption={selected}
+        onChange={handleChange}
+        contextMenuPosition="bottom"
+      />
+    </div>
+  );
 }

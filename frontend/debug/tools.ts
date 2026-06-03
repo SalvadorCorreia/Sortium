@@ -1,9 +1,8 @@
 import type { SortiumObserverController } from '../injection/observer';
 import { logSelectorMatches, findSortInjectionTarget } from '../injection/targets';
-import { SORTIUM_ROOT_ID } from '../injection/constants';
-import { createLogger } from '../services/logger';
+import { log, logError } from '../services/logger';
 
-const logger = createLogger('debug');
+const ROOT_ID = 'sortium-root';
 
 type DebugLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -133,7 +132,7 @@ export function exposeSortiumDebug(doc: Document, controller: SortiumObserverCon
         pushEvent(debugApi, { ts: Date.now(), level: 'error', type: 'exception', where: 'findSortInjectionTarget', error: e });
       }
 
-      const root = doc.getElementById(SORTIUM_ROOT_ID);
+      const root = doc.getElementById(ROOT_ID);
 
       const report: SortiumProbeReport = {
         ts: Date.now(),
@@ -159,83 +158,5 @@ export function exposeSortiumDebug(doc: Document, controller: SortiumObserverCon
       };
 
       pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'probe', report });
-      if (debugApi.verbose) logger.info('Probe report', report);
-      return report;
-    },
-
-    inspectSelectors: () => {
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'inspectSelectors' });
-      return logSelectorMatches(doc);
-    },
-
-    forceReinject: () => {
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'forceReinject' });
-      controller.forceReinject('window.sortiumDebug');
-      // Immediately probe after reinject attempt
-      debugApi.probe();
-    },
-
-    removeInjected: () => {
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'removeInjected' });
-      controller.removeInjected('window.sortiumDebug');
-      debugApi.probe();
-    },
-
-    logState: () => {
-      const state = controller.getState();
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'logState', meta: state });
-      logger.info('Observer state', state);
-      return state;
-    },
-
-    clearEvents: () => {
-      debugApi.events.length = 0;
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'clearEvents' });
-      logger.info('Debug events cleared');
-    },
-
-    startWatch: (intervalMs = 1500) => {
-      debugApi.stopWatch();
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: `startWatch(${intervalMs})` });
-
-      watchTimer = hostWindow.setInterval(() => {
-        try {
-          debugApi.probe();
-        } catch (e) {
-          pushEvent(debugApi, { ts: Date.now(), level: 'error', type: 'exception', where: 'watchTimer.probe', error: e });
-        }
-      }, intervalMs) as unknown as number;
-
-      logger.info(`Started watch mode (interval ${intervalMs}ms)`);
-    },
-
-    stopWatch: () => {
-      if (watchTimer != null) {
-        hostWindow.clearInterval(watchTimer);
-        watchTimer = null;
-        pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'action', action: 'stopWatch' });
-        logger.info('Stopped watch mode');
-      }
-    },
-  };
-
-  hostWindow.sortiumDebug = debugApi;
-  pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'init', message: 'Debug tools ready on window.sortiumDebug' });
-  logger.info('Debug tools ready on window.sortiumDebug');
-
-  // Optional: capture global errors into the ring buffer (very useful inside Steam CEF)
-  const onError = (ev: ErrorEvent) => {
-    pushEvent(debugApi, { ts: Date.now(), level: 'error', type: 'exception', where: 'window.error', error: ev.error ?? ev.message });
-  };
-  hostWindow.addEventListener('error', onError);
-
-  return () => {
-    debugApi.stopWatch();
-    hostWindow.removeEventListener('error', onError);
-
-    if (hostWindow.sortiumDebug === debugApi) {
-      delete hostWindow.sortiumDebug;
-      logger.info('Debug tools removed from window.sortiumDebug');
-    }
-  };
-}
+      if (debugApi.verbose) log('Probe report', report);
+      return

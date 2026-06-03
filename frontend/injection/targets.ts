@@ -1,4 +1,4 @@
-import { createLogger } from '../services/logger';
+import { log, logError } from '../services/logger';
 
 export interface SelectorMatch {
   selector: string;
@@ -12,13 +12,11 @@ export interface SortInjectionTarget {
   selectorUsed: string;
 }
 
-const logger = createLogger('targets');
-
 /**
  * Steam Desktop runs multiple UI documents/surfaces. We ONLY want the Library surface.
  * In current Steam builds, the Library root includes a stable class token like:
- *   - LibraryDisplaySizeSmall
- *   - LibraryDisplaySizeLarge
+ * - LibraryDisplaySizeSmall
+ * - LibraryDisplaySizeLarge
  * (The other hashed class token will change frequently.)
  */
 const LIBRARY_ROOT_CLASS_PREFIX = 'LibraryDisplaySize';
@@ -117,7 +115,7 @@ function findSortByDropdownWithin(libraryRoot: HTMLElement): { button: HTMLEleme
   const allDropdowns = getElements(libraryRoot, DROPDOWN_BUTTON_SELECTOR);
   const visible = firstVisible(allDropdowns);
   if (visible) {
-    logger.warn('Sort By label not found; falling back to first visible dropdown button. This may be incorrect.');
+    logError('Sort By label not found; falling back to first visible dropdown button. This may be incorrect.');
     const panel = visible.parentElement instanceof HTMLElement ? visible.parentElement : libraryRoot;
     return { button: visible, panel };
   }
@@ -141,7 +139,7 @@ export function logSelectorMatches(doc: Document) {
     sortBy: sortByInfo,
   };
 
-  logger.info('Selector diagnostics', results);
+  log('Selector diagnostics', results);
   return results;
 }
 

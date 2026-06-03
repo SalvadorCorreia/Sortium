@@ -1,14 +1,13 @@
 import type { SortiumObserverController } from '../injection/observer';
-import { SORTIUM_ROOT_ID } from '../injection/constants';
-import { createLogger } from '../services/logger';
+import { log, logError } from '../services/logger';
 
-const logger = createLogger('model-debug');
+const ROOT_ID = 'sortium-root';
 
 /**
  * Minimal, model-specific debugging for the *current* injection strategy.
  *
  * It answers only one question:
- *   "Why did Sortium fail to inject next to the Library 'Sort By' dropdown?"
+ * "Why did Sortium fail to inject next to the Library 'Sort By' dropdown?"
  */
 
 export type ModelFailureReason =
@@ -170,7 +169,7 @@ function buildReport(doc: Document, controller?: SortiumObserverController): Sor
   rep.sortBy.dropdownFound = true;
   rep.sortBy.dropdownBreadcrumb = breadcrumb(resolved.dropdown);
 
-  const root = doc.getElementById(SORTIUM_ROOT_ID);
+  const root = doc.getElementById(ROOT_ID);
   rep.injectedRoot = {
     exists: Boolean(root),
     breadcrumb: root ? breadcrumb(root) : undefined,
@@ -219,19 +218,19 @@ export function exposeSortiumModelDebug(doc: Document, controller: SortiumObserv
     diagnose: () => buildReport(doc, controller),
     print: () => {
       const rep = buildReport(doc, controller);
-      if (rep.ok) logger.info('Model OK', rep);
-      else logger.warn(`Model FAILED: ${rep.reason ?? 'UNKNOWN'}`, rep);
+      if (rep.ok) log('Model OK', rep);
+      else logError(`Model FAILED: ${rep.reason ?? 'UNKNOWN'}`, rep);
       return rep;
     },
   };
 
   w.sortiumModelDebug = api;
-  logger.info('Model debug ready on window.sortiumModelDebug');
+  log('Model debug ready on window.sortiumModelDebug');
 
   return () => {
     if (w.sortiumModelDebug === api) {
       delete w.sortiumModelDebug;
-      logger.info('Model debug removed from window.sortiumModelDebug');
+      log('Model debug removed from window.sortiumModelDebug');
     }
   };
 }
