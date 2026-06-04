@@ -157,6 +157,31 @@ export function exposeSortiumDebug(doc: Document, controller: SortiumObserverCon
         },
       };
 
-      pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'probe', report });
+pushEvent(debugApi, { ts: Date.now(), level: 'info', type: 'probe', report });
       if (debugApi.verbose) log('Probe report', report);
-      return
+      return report;
+    },
+
+    inspectSelectors: () => logSelectorMatches(doc),
+    forceReinject: () => controller.forceReinject(),
+    removeInjected: () => controller.removeInjected(),
+    logState: () => controller.getState(),
+    clearEvents: () => { debugApi.events = []; },
+    startWatch: (intervalMs = 2000) => {
+      if (watchTimer) clearInterval(watchTimer);
+      watchTimer = window.setInterval(() => debugApi.probe(), intervalMs);
+    },
+    stopWatch: () => {
+      if (watchTimer) clearInterval(watchTimer);
+      watchTimer = null;
+    }
+  };
+
+  // Expose to window
+  if (hostWindow) hostWindow.sortiumDebug = debugApi;
+
+  return () => {
+    debugApi.stopWatch();
+    if (hostWindow) delete hostWindow.sortiumDebug;
+  };
+}

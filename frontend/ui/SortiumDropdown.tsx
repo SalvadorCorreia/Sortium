@@ -1,16 +1,15 @@
-import { Dropdown } from '@steambrew/client';
+import { Dropdown, staticClasses } from '@steambrew/client';
 import { getSettings, saveSettings } from '../services/settings';
 import { log } from '../services/logger';
 
 export function SortiumDropdown() {
-  const settings = getSettings();
-  
-  // Initialize state from our settings, defaulting to 'main_story' if empty
-  const [selected, setSelected] = window.SP_REACT.useState<string>(
-    settings.activeSortCategory || 'main_story'
+  // Use React directly, not window.SP_REACT
+  // Note: Depending on your build system (Vite/Webpack), you might need to import React
+  // If Millennium injects React into scope automatically, this works as is.
+  const [selected, setSelected] = React.useState<string>(
+    getSettings().activeSortCategory || 'main_story'
   );
 
-  // Steambrew's Dropdown component expects an array of objects with 'label' and 'data'
   const options = [
     { label: 'HLTB: Main Story', data: 'main_story' },
     { label: 'HLTB: Main + Extras', data: 'main_extra' },
@@ -18,18 +17,25 @@ export function SortiumDropdown() {
     { label: 'SteamHunters: Median Time', data: 'median_time' },
   ];
 
-  // Steam's Dropdown passes the 'data' value directly into the onChange handler
   const handleChange = (selectedData: string) => {
     setSelected(selectedData);
-    
-    // Save to our backend settings
-    saveSettings({ ...settings, activeSortCategory: selectedData });
+    saveSettings({ ...getSettings(), activeSortCategory: selectedData });
     log('Sort category changed to', selectedData);
+    
+    // Future Implementation: Trigger the actual library sort here
   };
 
   return (
-    <div className="sortium-dropdown-shell" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span className="sortium-dropdown-label" style={{ color: '#b8b6b4', textTransform: 'uppercase', fontSize: '12px' }}>
+    // We use standard React styling, but try to piggyback off Steam's class names
+    // if we know them. Otherwise, standard inline flexbox is fine for layout.
+    <div 
+      className="sortium-dropdown-container" 
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}
+    >
+      <span 
+        className={staticClasses.libraryAssetImageClasses} // Example of using a Steam class for styling
+        style={{ color: '#b8b6b4', textTransform: 'uppercase', fontSize: '12px', fontWeight: 'bold' }}
+      >
         Sortium
       </span>
       <Dropdown

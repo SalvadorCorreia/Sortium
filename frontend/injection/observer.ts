@@ -1,7 +1,6 @@
 import { log, logError } from '../services/logger';
 import { logSelectorMatches, findSortInjectionTarget } from './targets';
 import { injectSortiumStyles, removeSortiumStyles } from '../styles/injectStyles';
-import { mountSortiumDropdown, unmountSortiumDropdown } from '../ui/mount';
 
 const ROOT_ID = 'sortium-root';
 
@@ -20,7 +19,6 @@ function removeDuplicateRoots(doc: Document, keep: HTMLElement | null) {
       continue;
     }
 
-    unmountSortiumDropdown(root);
     root.remove();
   }
 }
@@ -31,7 +29,6 @@ function removeSortiumRoot(doc: Document, reason: string) {
     return;
   }
 
-  unmountSortiumDropdown(root);
   root.remove();
   log(`Removed Sortium root (${reason}).`);
 }
@@ -91,7 +88,6 @@ export function setupSortiumObserver(doc: Document): SortiumObserverController {
       lastSelector = target.selectorUsed;
       
       // We no longer pass configuration options here; the UI handles it natively
-      mountSortiumDropdown(root);
       log(`Injected Sortium sidecar via selector "${target.selectorUsed}" (${reason}).`);
     } finally {
       isInjecting = false;
