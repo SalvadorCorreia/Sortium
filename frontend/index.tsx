@@ -76,6 +76,19 @@ function windowCreated(context: { m_strName?: string; m_popup?: { document?: Doc
   removeModelDebugTools = exposeSortiumModelDebug(doc, activeObserver);
 
   log(`Sortium observer attached to window: ${context.m_strName}`);
+
+  activeObserver = setupSortiumObserver(doc);
+  removeDebugTools = exposeSortiumDebug(doc, activeObserver);
+  removeModelDebugTools = exposeSortiumModelDebug(doc, activeObserver);
+
+  console.log(`%c[Sortium] Observer attached to ${context.m_strName}. Waiting 5s for Steam UI to load...`, 'color: #00ccff; font-weight: bold;');
+
+  // The Fix: Delay the scan until Steam's React components are actually in memory
+  setTimeout(() => {
+    console.warn("🚀 [Sortium] FIRING RECON SCAN NOW!");
+    runSortiumRecon();
+  }, 5000);
+}
 }
 
 // ==============================================================================
