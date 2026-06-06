@@ -6,7 +6,7 @@ Sortium is a plugin built for the Millennium framework. It aims to expand Steam'
 
 ## Current Status
 
-Sortium is currently in early development. 
+Sortium is currently in early development.
 
 The Minimum Viable Product (MVP) will focus on:
 * Adding a new custom sorting filter to the Steam library dropdown.
