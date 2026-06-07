@@ -1,55 +1,60 @@
-import React from 'react';
-import { createRoot, Root } from 'react-dom/client';
+import { Millennium, findModule, sleep } from '@steambrew/client';
+import { createRoot } from 'react-dom/client';
 import { IconsModule, definePlugin } from '@steambrew/client';
-import { initNavigationObserver } from './injection/observer';
-import { getLibrarySelectors, formatAsSelector } from './injection/selectors';
-import { waitForElement } from './injection/dom';
+import { SortiumDropdown } from './ui/SortiumDropdown.tsx';
 import SettingsMenu from './ui/SettingsMenu';
-import { SortiumDropdown } from './ui/SortiumDropdown';
 
-// Track the active React root to prevent memory leaks during rapid library navigation.
-let activeRoot: Root | null = null;
+declare global {
+	var MainWindowBrowserManager: any;
+}
 
-/**
- * Mounts the Sortium UI into the Steam Library DOM.
- * Consumes the target CSS selector, returns nothing, and mutates the DOM by injecting a React root.
- */
-async function injectSortiumUI(targetSelector: string): Promise<void> {
-    const targetContainer = await waitForElement(targetSelector);
-    if (!targetContainer) return;
+const WaitForElement = async (sel: string, parent = document) =>
+	[...(await Millennium.findElement(parent, sel))][0];
 
-    // Fast-fail if our component is already mounted to prevent infinite stacking on re-renders.
-    if (targetContainer.querySelector('.sortium-injection-point')) return;
 
-    // Explicitly unmount the old tree to ensure React frees up detached DOM nodes.
-    if (activeRoot) {
-        activeRoot.unmount();
-        activeRoot = null;
+async function renderCollection(popup: any) {
+    const collOptionsDiv = await WaitForElement(`div.${findModule(e => e.CollectionOptions).CollectionOptions}`, popup.m_popup.document);
+    const oldSortiumDropdown = collOptionsDiv.querySelector('div.sortium-dropdown');
+    if (!oldSortiumDropdown) {
+        const sortiumDropdown = popup.m_popup.document.createElement("div");
+        sortiumDropdown.className ="sortium-dropdown";
+
+        const sortiumRoot = createRoot(sortiumDropdown);
+        sortiumRoot.render(<SortiumDropdown />);
+
+        collOptionsDiv.insertBefore(sortiumDropdown, collOptionsDiv.firstChild!.nextSibling);
     }
+}
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'sortium-injection-point';
-    
-    // Most of Steam's top-level library containers use flexbox, making simple appends visually safe.
-    targetContainer.appendChild(wrapper);
+async function OnPopupCreation(popup: any){
+	await sleep(10000);
+	if (popup.m_strName === "SP Desktop_uid0") {
+		var mwbm = undefined;
+		while (!mwbm){
+			console.log("[Sortium] Waiting for MainWindowBrowserManager");
+			try {
+				mwbm = MainWindowBrowserManager;
+			} catch {
+				await sleep(100);
+			}
+		}
 
-    activeRoot = createRoot(wrapper);
-    activeRoot.render(<SortiumDropdown />);
+		console.log("[Sortium] Registering callback");
+        MainWindowBrowserManager.m_browser.on("finished-request", async (currentURL: any, previousURL: any) => {
+            void currentURL;
+            void previousURL;
+
+            if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/")) {
+                await renderCollection(popup);
+            }
+        });
+	}
 }
 
 export default definePlugin(() => {
     console.log('[Sortium] Frontend plugin registered.');
 
-    const selectors = getLibrarySelectors();
-
-    // The observer guarantees the DOM is settled before we attempt injection.
-    initNavigationObserver((currentPath: string) => {
-        if (currentPath === '/library/home') {
-            injectSortiumUI(formatAsSelector(selectors.showcaseHeader));
-        } else if (currentPath.startsWith('/library/collection/')) {
-            injectSortiumUI(formatAsSelector(selectors.collectionOptions));
-        }
-    });
+    Millennium.AddWindowCreateHook!(OnPopupCreation);
 
     return {
         title: 'Sortium',
