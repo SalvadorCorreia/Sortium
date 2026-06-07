@@ -10,9 +10,6 @@ import {
 } from '@steambrew/client';
 
 import { setupSortiumObserver, type SortiumObserverController } from './injection/observer';
-import { exposeSortiumDebug } from './debug/tools';
-import { exposeSortiumModelDebug } from './debug/modelDebug';
-import { log } from './services/logger';
 
 import { 
   initSettings, 
@@ -27,72 +24,28 @@ import {
 // Window Hooking & Observer Logic
 // ==============================================================================
 
-let activeDocument: Document | null = null;
 let activeObserver: SortiumObserverController | null = null;
-let removeDebugTools: (() => void) | null = null;
-let removeModelDebugTools: (() => void) | null = null;
 
-function cleanupActiveDocument() {
+function cleanupObserver() {
   activeObserver?.cleanup();
   activeObserver = null;
-
-  removeDebugTools?.();
-  removeDebugTools = null;
-
-  removeModelDebugTools?.();
-  removeModelDebugTools = null;
-
-  activeDocument = null;
 }
 
-function windowCreated(context: { m_strName?: string; m_popup?: { document?: Document } }) {
-  if (!context.m_strName?.startsWith('SP ')) {
-    return;
+async function windowCreated(popup: any) {
+  // We only care about the main desktop window, just like steam-easygrid
+  if (popup.m_strName === "SP Desktop_uid0") {
+    console.log('[Sortium] Main window created. Initializing observer...');
+    
+    // Clean up any existing observer just in case
+    cleanupObserver();
+    
+    // Pass the popup object to our new observer architecture
+    activeObserver = setupSortiumObserver(popup);
   }
-
-  if (context.m_strName.includes('BPM')) {
-    log(`Skipping Big Picture window: ${context.m_strName}`);
-    return;
-  }
-
-  const doc = context.m_popup?.document;
-  if (!doc?.body) {
-    return;
-  }
-
-  if (activeDocument === doc) {
-    return;
-  }
-
-  cleanupActiveDocument();
-  activeDocument = doc;
-
-  activeObserver = setupSortiumObserver(doc);
-
-  // Existing (general) debug API
-  removeDebugTools = exposeSortiumDebug(doc, activeObserver);
-
-  // New (model-specific) debug API with explicit failure reasons
-  removeModelDebugTools = exposeSortiumModelDebug(doc, activeObserver);
-
-  log(`Sortium observer attached to window: ${context.m_strName}`);
-
-  activeObserver = setupSortiumObserver(doc);
-  removeDebugTools = exposeSortiumDebug(doc, activeObserver);
-  removeModelDebugTools = exposeSortiumModelDebug(doc, activeObserver);
-
-  console.log(`%c[Sortium] Observer attached to ${context.m_strName}. Waiting 5s for Steam UI to load...`, 'color: #00ccff; font-weight: bold;');
-
-  // The Fix: Delay the scan until Steam's React components are actually in memory
-  setTimeout(() => {
-    console.warn("🚀 [Sortium] FIRING RECON SCAN NOW!");
-    runSortiumRecon();
-  }, 5000);
-}
 }
 
 // ==============================================================================
-// Native Settings UI
+// Native Settings UI (Unchanged)
 // ==============================================================================
 
 const SettingsContent = () => {
@@ -212,6 +165,7 @@ const SettingsContent = () => {
 // ==============================================================================
 
 export default definePlugin(() => {
+  console.log('[Sortium] Frontend plugin registered.');
   Millennium.AddWindowCreateHook(windowCreated);
 
   return {
@@ -219,7 +173,7 @@ export default definePlugin(() => {
     icon: <IconsModule.Settings />,
     content: <SettingsContent />,
     onDismount() {
-      cleanupActiveDocument();
+      cleanupObserver();
     },
   };
 });
