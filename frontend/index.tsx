@@ -1,179 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Millennium, 
-  IconsModule, 
-  definePlugin, 
-  Field, 
-  ToggleField, 
-  DialogControlsSection, 
-  DialogControlsSectionHeader 
-} from '@steambrew/client';
+import React from 'react';
+import { createRoot, Root } from 'react-dom/client';
+import { IconsModule, definePlugin } from '@steambrew/client';
+import { initNavigationObserver } from './injection/observer';
+import { getLibrarySelectors, formatAsSelector } from './injection/selectors';
+import { waitForElement } from './injection/dom';
+import SettingsMenu from './ui/SettingsMenu';
+import { SortiumDropdown } from './ui/SortiumDropdown';
 
-import { setupSortiumObserver, type SortiumObserverController } from './injection/observer';
+// Track the active React root to prevent memory leaks during rapid library navigation.
+let activeRoot: Root | null = null;
 
-import { 
-  initSettings, 
-  getSettings, 
-  getAvailableStreams, 
-  saveSettings, 
-  type PluginSettings, 
-  type DataStream 
-} from './services/settings';
+/**
+ * Mounts the Sortium UI into the Steam Library DOM.
+ * Consumes the target CSS selector, returns nothing, and mutates the DOM by injecting a React root.
+ */
+async function injectSortiumUI(targetSelector: string): Promise<void> {
+    const targetContainer = await waitForElement(targetSelector);
+    if (!targetContainer) return;
 
-// ==============================================================================
-// Window Hooking & Observer Logic
-// ==============================================================================
+    // Fast-fail if our component is already mounted to prevent infinite stacking on re-renders.
+    if (targetContainer.querySelector('.sortium-injection-point')) return;
 
-let activeObserver: SortiumObserverController | null = null;
-
-function cleanupObserver() {
-  activeObserver?.cleanup();
-  activeObserver = null;
-}
-
-async function windowCreated(popup: any) {
-  // We only care about the main desktop window, just like steam-easygrid
-  if (popup.m_strName === "SP Desktop_uid0") {
-    console.log('[Sortium] Main window created. Initializing observer...');
-    
-    // Clean up any existing observer just in case
-    cleanupObserver();
-    
-    // Pass the popup object to our new observer architecture
-    activeObserver = setupSortiumObserver(popup);
-  }
-}
-
-// ==============================================================================
-// Native Settings UI (Unchanged)
-// ==============================================================================
-
-const SettingsContent = () => {
-  const [settings, setSettingsState] = useState<PluginSettings | null>(null);
-  const [streams, setStreams] = useState<DataStream[]>([]);
-
-  useEffect(() => {
-    let isMounted = true;
-    
-    // Initialize IPC bridge and load data from Lua
-    initSettings().then(() => {
-      if (isMounted) {
-        setSettingsState(getSettings());
-        setStreams(getAvailableStreams());
-      }
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  if (!settings) {
-    return <Field label="Loading Sortium Configuration..." />;
-  }
-
-  // Event Handlers
-  const toggleStream = async (streamId: string, checked: boolean) => {
-    const newSettings = {
-      ...settings,
-      enabledStreams: { ...settings.enabledStreams, [streamId]: checked },
-    };
-    setSettingsState(newSettings);
-    await saveSettings(newSettings);
-  };
-
-  const toggleLogging = async (checked: boolean) => {
-    const newSettings = { ...settings, enableLogging: checked };
-    setSettingsState(newSettings);
-    await saveSettings(newSettings);
-  };
-
-  const updateCacheDays = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10);
-    if (!isNaN(val) && val > 0) {
-      const newSettings = { ...settings, cacheDays: val };
-      setSettingsState(newSettings);
-      await saveSettings(newSettings);
+    // Explicitly unmount the old tree to ensure React frees up detached DOM nodes.
+    if (activeRoot) {
+        activeRoot.unmount();
+        activeRoot = null;
     }
-  };
 
-  return (
-    <>
-      <DialogControlsSection>
-        <DialogControlsSectionHeader>Data Streams</DialogControlsSectionHeader>
-        <div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>
-          Select which data sources to use. Enabled streams and their sorting metrics will appear in your Library sorting dropdown.
-        </div>
-        
-        {streams.map((stream) => (
-          <ToggleField
-            key={stream.id}
-            label={stream.name}
-            checked={!!settings.enabledStreams[stream.id]}
-            onChange={(checked) => toggleStream(stream.id, checked)}
-            bottomSeparator="standard"
-          />
-        ))}
-      </DialogControlsSection>
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sortium-injection-point';
+    
+    // Most of Steam's top-level library containers use flexbox, making simple appends visually safe.
+    targetContainer.appendChild(wrapper);
 
-      <DialogControlsSection>
-        <DialogControlsSectionHeader>Configuration</DialogControlsSectionHeader>
-        <Field 
-          label="Cache Expiration (Days)" 
-          description="How long to store fetched game data locally before pinging the APIs again." 
-          bottomSeparator="standard"
-        >
-          <input
-            type="number"
-            min="1"
-            value={settings.cacheDays}
-            onChange={updateCacheDays}
-            style={{ 
-              width: '60px', 
-              padding: '6px 8px', 
-              background: 'rgba(0, 0, 0, 0.25)', 
-              color: 'white', 
-              border: '1px solid rgba(255, 255, 255, 0.1)', 
-              borderRadius: '4px',
-              outline: 'none'
-            }}
-          />
-        </Field>
-        <ToggleField
-          label="Enable Developer Logging"
-          description="Print debug information to the Millennium developer console."
-          checked={settings.enableLogging}
-          onChange={toggleLogging}
-          bottomSeparator="standard"
-        />
-      </DialogControlsSection>
-
-      <DialogControlsSection>
-        <DialogControlsSectionHeader>Debug Status</DialogControlsSectionHeader>
-        <Field 
-          label="Last Used Metric" 
-          description={settings.lastUsedMetric || "None"} 
-          bottomSeparator="none" 
-        />
-      </DialogControlsSection>
-    </>
-  );
-};
-
-// ==============================================================================
-// Plugin Registration
-// ==============================================================================
+    activeRoot = createRoot(wrapper);
+    activeRoot.render(<SortiumDropdown />);
+}
 
 export default definePlugin(() => {
-  console.log('[Sortium] Frontend plugin registered.');
-  Millennium.AddWindowCreateHook(windowCreated);
+    console.log('[Sortium] Frontend plugin registered.');
 
-  return {
-    title: 'Sortium',
-    icon: <IconsModule.Settings />,
-    content: <SettingsContent />,
-    onDismount() {
-      cleanupObserver();
-    },
-  };
+    const selectors = getLibrarySelectors();
+
+    // The observer guarantees the DOM is settled before we attempt injection.
+    initNavigationObserver((currentPath: string) => {
+        if (currentPath === '/library/home') {
+            injectSortiumUI(formatAsSelector(selectors.showcaseHeader));
+        } else if (currentPath.startsWith('/library/collection/')) {
+            injectSortiumUI(formatAsSelector(selectors.collectionOptions));
+        }
+    });
+
+    return {
+        title: 'Sortium',
+        icon: <IconsModule.Settings />,
+        content: <SettingsMenu />
+    };
 });

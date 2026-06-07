@@ -18,12 +18,11 @@ export function SortiumDropdown() {
     { label: 'SteamHunters: Median', data: 'sh_median' },
   ];
 
-  const handleChange = (selectedData: string) => {
+  const handleChange = (option: { data: string; label: string }) => {
+    const selectedData = option.data; // Extract the string value
     setSelected(selectedData);
     saveSettings({ ...currentSettings, lastUsedMetric: selectedData });
     console.log('[Sortium] Sort category changed to:', selectedData);
-    
-    // Future Implementation: Trigger the actual library sort here
   };
 
   return (
@@ -35,7 +34,6 @@ export function SortiumDropdown() {
         rgOptions={options}
         selectedOption={selected}
         onChange={handleChange}
-        contextMenuPosition="bottom"
       />
     </div>
   );

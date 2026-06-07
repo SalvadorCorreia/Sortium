@@ -1,28 +1,33 @@
-import { findSortInjectionTarget } from './targets';
-
-// We keep the ROOT_ID standard so we know where to mount React later
-export const ROOT_ID = 'sortium-root';
-
-export interface SortiumObserverController {
-  cleanup(): void;
-}
+import { Millennium, sleep } from "@steambrew/client";
 
 /**
- * (Skeleton) Will hook into MainWindowBrowserManager to listen for 
- * '/library/home' and '/library/collection/' navigation events.
+ * Initializes the Steam navigation observer to detect library state changes.
+ * Consumes a callback function triggered upon library navigation, returns nothing, and binds a window creation hook as a side effect.
  */
-export function setupSortiumObserver(popup: any): SortiumObserverController {
-  console.log('[Sortium] setupSortiumObserver initialized - currently hollowed out');
-  
-  // Future Implementation:
-  // Here we will wait for MainWindowBrowserManager and attach the "finished-request" listener.
-  // When the user navigates to the library, we will call findSortInjectionTarget(), 
-  // create the ROOT_ID div, and mount our React component into it.
-  
-  return {
-    cleanup() {
-      console.log('[Sortium] Cleanup called');
-      // Future Implementation: Remove event listeners and unmount React root
-    }
-  };
+export function initNavigationObserver(onLibraryLoad: (path: string) => void): void {
+    Millennium.AddWindowCreateHook(async (popup: any) => {
+        // Steam spawns multiple hidden windows (friends list, settings); we only want the primary desktop UI.
+        if (popup.m_strName !== "SP Desktop_uid0") return;
+
+        let mwbm: any = undefined;
+
+        // Steam's core UI managers initialize asynchronously, forcing us to poll until the reference is attached to the global scope.
+        while (!mwbm) {
+            try {
+                // @ts-ignore - MainWindowBrowserManager is injected into the global scope by Steam's internal Webpack bundle.
+                mwbm = MainWindowBrowserManager; 
+            } catch {
+                await sleep(100);
+            }
+        }
+
+        // Hooking 'finished-request' guarantees Steam's React router has finished mounting the DOM nodes before we attempt to manipulate them.
+        mwbm.m_browser.on("finished-request", () => {
+            const currentPath = mwbm.m_lastLocation?.pathname;
+
+            if (currentPath === "/library/home" || currentPath?.startsWith("/library/collection/")) {
+                onLibraryLoad(currentPath);
+            }
+        });
+    });
 }
