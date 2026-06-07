@@ -22,9 +22,9 @@ function GetSettings()
 	})
 end
 
-function SaveSettings(params)
-	-- The frontend passes the JSON string inside the params.settings_json property
-	local ok, new_settings = pcall(json.decode, params.settings_json)
+function SaveSettings(settings_json)
+	-- The frontend passes the JSON string inside the settings_json property
+	local ok, new_settings = pcall(json.decode, settings_json)
 	if not ok then
 		logger:error("Failed to decode settings JSON from frontend")
 		return json.encode({ success = false, error = "Invalid JSON provided" })
