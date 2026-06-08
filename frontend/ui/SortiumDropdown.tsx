@@ -2,7 +2,18 @@ import { Dropdown } from '@steambrew/client';
 import { useState } from 'react';
 import { getSettings, saveSettings } from '../services/settings';
 
-export function SortiumDropdown() {
+interface SortiumDropdownProps {
+  variant?: 'custom' | 'native';
+  wrapperClass?: string;
+  labelClass?: string;
+}
+
+export function SortiumDropdown({
+  variant = 'custom',
+  wrapperClass = '',
+  labelClass = ''
+}: SortiumDropdownProps) {
+
   const currentSettings = getSettings();
   
   // Initialize state using the correct property from your settings.ts
@@ -24,6 +35,24 @@ export function SortiumDropdown() {
     saveSettings({ ...currentSettings, lastUsedMetric: selectedData });
     console.log('[Sortium] Sort category changed to:', selectedData);
   };
+
+  // ------------------------------------------
+  // RENDER LOGIC: Switch based on the variant
+  // ------------------------------------------
+  if (variant === 'native') {
+    return (
+      <div className={wrapperClass} tabIndex={-1}>
+        <div className={labelClass} style={{ textTransform: 'uppercase' }}>
+          Sortium
+        </div>
+        <Dropdown
+          rgOptions={options}
+          selectedOption={selected}
+          onChange={handleChange}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
