@@ -12,6 +12,20 @@ const WaitForElement = async (sel: string, parent = document) =>
 	[...(await Millennium.findElement(parent, sel))][0];
 
 
+async function renderHome(popup: any) {
+    const headerDiv = await WaitForElement(`div.${findModule(e => e.ShowcaseHeader).ShowcaseHeader}`, popup.m_popup.document);
+    const oldSortiumDropdown = headerDiv.querySelector('div.sortium-dropdown');
+    if (!oldSortiumDropdown) {
+        const sortiumDropdown = popup.m_popup.document.createElement("div");
+        sortiumDropdown.className ="sortium-dropdown";
+
+        const sortiumRoot = createRoot(sortiumDropdown);
+        sortiumRoot.render(<SortiumDropdown />);
+
+        headerDiv.insertBefore(sortiumDropdown, headerDiv.firstChild!.nextSibling);
+    }
+}
+
 async function renderCollection(popup: any) {
     const collOptionsDiv = await WaitForElement(`div.${findModule(e => e.CollectionOptions).CollectionOptions}`, popup.m_popup.document);
     const oldSortiumDropdown = collOptionsDiv.querySelector('div.sortium-dropdown');
@@ -44,7 +58,9 @@ async function OnPopupCreation(popup: any){
             void currentURL;
             void previousURL;
 
-            if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/")) {
+            if (MainWindowBrowserManager.m_lastLocation.pathname === "/library/home") {
+                await renderHome(popup);
+            } else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/")) {
                 await renderCollection(popup);
             }
         });
