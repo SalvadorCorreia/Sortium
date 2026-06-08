@@ -1,13 +1,13 @@
 import { Millennium, definePlugin, IconsModule, , sleep } from '@steambrew/client';
 import SettingsMenu from './ui/SettingsMenu';
-import { injectHomeDropdown, injectCollectionDropdown} from './utils/injectors.tsx';
+import { injectHomeDropdowns, injectCollectionDropdown} from './utils/injectors.tsx';
 
 declare global {
 	var MainWindowBrowserManager: any;
 }
 
 async function OnPopupCreation(popup: any){
-	await sleep(10000);
+	await sleep(1000);
 	if (popup.m_strName === "SP Desktop_uid0") {
 		var mwbm = undefined;
 		while (!mwbm){
@@ -25,7 +25,7 @@ async function OnPopupCreation(popup: any){
             void previousURL;
 
             if (MainWindowBrowserManager.m_lastLocation.pathname === "/library/home") {
-                await injectHomeDropdown(popup);
+                await injectHomeDropdowns(popup);
             } else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/")) {
                 await injectCollectionDropdown(popup);
             }
