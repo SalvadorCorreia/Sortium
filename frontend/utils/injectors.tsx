@@ -22,22 +22,14 @@ export async function injectHomeDropdowns(popup: any) {
 export async function injectCollectionDropdown(popup: any) {
     const collOptionsDiv = await waitForElement(`div.${findModule(e => e.CollectionOptions).CollectionOptions}`, popup.m_popup.document);
     const oldSortiumDropdown = collOptionsDiv.querySelector('div.sortium-dropdown');
-    if (!oldSortiumDropdown) {
-        const nativeDropdownWrapper = collOptionsDiv.querySelector('.DialogDropDown')?.parentElement;
 
-		const wrapperClass = nativeDropdownWrapper?.className || '';
-        const labelClass = (nativeDropdownWrapper?.firstChild as HTMLElement)?.className || '';
-
+	if (!oldSortiumDropdown) {
         const sortiumDropdown = popup.m_popup.document.createElement("div");
         sortiumDropdown.className ="sortium-dropdown";
 
         const sortiumRoot = createRoot(sortiumDropdown);
         sortiumRoot.render(
-			<SortiumDropdown 
-				variant="native"
-                wrapperClass={wrapperClass}
-                labelClass={labelClass}
-			/>
+			<SortiumDropdown variant="collection" />
 		);
 
         collOptionsDiv.insertBefore(sortiumDropdown, collOptionsDiv.firstChild!.nextSibling);

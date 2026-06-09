@@ -1,18 +1,12 @@
-import { Dropdown } from '@steambrew/client';
+import { Dropdown, findModule } from '@steambrew/client';
 import { useState } from 'react';
 import { getSettings, saveSettings } from '../services/settings';
 
 interface SortiumDropdownProps {
-  variant?: 'custom' | 'native';
-  wrapperClass?: string;
-  labelClass?: string;
+  variant?: 'default' | 'collection';
 }
 
-export function SortiumDropdown({
-  variant = 'custom',
-  wrapperClass = '',
-  labelClass = ''
-}: SortiumDropdownProps) {
+export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
 
   const currentSettings = getSettings();
   
@@ -39,10 +33,11 @@ export function SortiumDropdown({
   // ------------------------------------------
   // RENDER LOGIC: Switch based on the variant
   // ------------------------------------------
-  if (variant === 'native') {
+  if (variant === 'collection') {
+	const sortModule = findModule(m => m.SortingDropDown && m.SortingDropDownLabel) || {};
     return (
-      <div className={wrapperClass} tabIndex={-1}>
-        <div className={labelClass} style={{ textTransform: 'uppercase' }}>
+      <div className={sortModule.SortingDropDown} tabIndex={-1}>
+        <div className={sortModule.SortingDropDownLabel}>
           Sortium
         </div>
         <Dropdown
