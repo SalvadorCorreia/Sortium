@@ -33,6 +33,33 @@ window.FindSteamHash = function(targetHash) {
     }
 }
 
+window.FindAllSteamHashes = function(targetHash) {
+    let foundMatches = [];
+    
+    window.webpackChunksteamui.push([[Math.random()], {}, (req) => {
+        for (const key of Object.keys(req.m)) {
+            const module = req(key);
+            if (module && typeof module === 'object') {
+                for (const propName in module) {
+                    if (module[propName] === targetHash) {
+                        foundMatches.push({ readableName: propName, module: module });
+                    }
+                }
+            }
+        }
+    }]);
+    
+    if (foundMatches.length > 0) {
+        console.log(`%c[Scanner] Found ${foundMatches.length} match(es) for '${targetHash}':`, 'color: #00ffff; font-weight: bold;');
+        foundMatches.forEach((match, index) => {
+            console.log(`%cMatch ${index + 1}: ${match.readableName}`, 'color: #ffff00; font-weight: bold;');
+            console.log(match.module);
+        });
+    } else {
+        console.error(`[Scanner] Could not find any match.`);
+    }
+}
+
 
 
 window.FindSteamClass = function(targetProperty) {
