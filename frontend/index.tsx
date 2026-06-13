@@ -1,6 +1,7 @@
 import { Millennium, definePlugin, IconsModule, , sleep } from '@steambrew/client';
 import SettingsMenu from './ui/SettingsMenu';
 import { injectHomeDropdowns, injectCollectionDropdown} from './utils/injectors.tsx';
+import { initSettings, getSettings } from './services/settings';
 
 declare global {
 	var MainWindowBrowserManager: any;
