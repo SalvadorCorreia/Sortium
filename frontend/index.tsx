@@ -7,6 +7,7 @@ declare global {
 }
 
 async function OnPopupCreation(popup: any){
+	await initSettings();
 	await sleep(1000);
 	if (popup.m_strName === "SP Desktop_uid0") {
 		var mwbm = undefined;
@@ -24,9 +25,11 @@ async function OnPopupCreation(popup: any){
             void currentURL;
             void previousURL;
 
-            if (MainWindowBrowserManager.m_lastLocation.pathname === "/library/home") {
+			const settings = getSettings();
+
+            if (MainWindowBrowserManager.m_lastLocation.pathname === "/library/home" && settings.enableLibraryButton) {
                 await injectHomeDropdowns(popup);
-            } else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/")) {
+            } else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith("/library/collection/") && settings.enableCollectionButton) {
                 await injectCollectionDropdown(popup);
             }
         });

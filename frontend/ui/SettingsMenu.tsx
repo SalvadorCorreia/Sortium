@@ -60,6 +60,18 @@ export default function SettingsMenu() {
         await saveSettings(newSettings);
     };
 
+    const toggleLibraryButton = async (checked: boolean) => {
+        const newSettings = { ...settings, enableLibraryButton: checked };
+        setSettingsState(newSettings);
+        await saveSettings(newSettings);
+    };
+
+    const toggleCollectionButton = async (checked: boolean) => {
+        const newSettings = { ...settings, enableCollectionButton: checked };
+        setSettingsState(newSettings);
+        await saveSettings(newSettings);
+    };
+
     const updateCacheDays = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value, 10);
         if (!isNaN(val) && val > 0) {
@@ -71,6 +83,27 @@ export default function SettingsMenu() {
 
     return (
         <>
+            <DialogControlsSection>
+                <DialogControlsSectionHeader>User Interface</DialogControlsSectionHeader>
+                <div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>
+                    Choose where the Sortium sorting button should be injected within Steam.
+                </div>
+                <ToggleField
+                    label="Enable Library Button"
+                    description="Show the sorting button on the main Library home page."
+                    checked={settings.enableLibraryButton}
+                    onChange={toggleLibraryButton}
+                    bottomSeparator="standard"
+                />
+                <ToggleField
+                    label="Enable Collection Button"
+                    description="Show the sorting button inside individual Collections."
+                    checked={settings.enableCollectionButton}
+                    onChange={toggleCollectionButton}
+                    bottomSeparator="standard"
+                />
+            </DialogControlsSection>
+
             <DialogControlsSection>
                 <DialogControlsSectionHeader>Data Streams</DialogControlsSectionHeader>
                 <div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>

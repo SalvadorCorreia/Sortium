@@ -20,6 +20,8 @@ export interface PluginSettings {
   lastUsedMetric: string;
   cacheDays: number;
   enableLogging: boolean;
+  enableLibraryButton: boolean;
+  enableCollectionButton: boolean;
 }
 
 interface BackendResponse<T> {
@@ -40,6 +42,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
   lastUsedMetric: 'hltb_main',
   cacheDays: 7,
   enableLogging: true,
+  enableLibraryButton: true,
+  enableCollectionButton: true,
 };
 
 const GetAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');

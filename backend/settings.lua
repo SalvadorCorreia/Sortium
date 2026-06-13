@@ -16,6 +16,8 @@ M.DEFAULTS = {
 	lastUsedMetric = "hltb_main",
 	cacheDays = 7,
 	enableLogging = true,
+	enableLibraryButton = true,
+	enableCollectionButton = true,
 }
 
 local function get_settings_path()
