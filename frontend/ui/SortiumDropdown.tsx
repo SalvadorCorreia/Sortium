@@ -2,6 +2,11 @@ import { Dropdown, findModule } from '@steambrew/client';
 import { useState } from 'react';
 import { getSettings, saveSettings } from '../services/settings';
 
+declare global {
+    var collectionStore: any;
+    var uiStore: any;
+}
+
 interface SortiumDropdownProps {
   variant?: 'default' | 'collection';
 }
@@ -28,6 +33,22 @@ export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
     setSelected(selectedData);
     saveSettings({ ...currentSettings, lastUsedMetric: selectedData });
     console.log('[Sortium] Sort category changed to:', selectedData);
+    if (variant === 'collection') {
+      const currentCollectionId = uiStore?.currentGameListSelection?.strCollectionId;
+
+      if (currentCollectionId && collectionStore) {
+        const currentColl = collectionStore.GetCollection(currentCollectionId);
+
+        const appIds = currentColl.allApps.map((app: any) => app.appid);
+
+        console.log(`[Sortium] Found ${appIds.length} AppIDs in collection:`, appIds);
+
+        // TODO: Call your Lua backend stream here with the appIds array
+        }
+    } else if (variant === 'default') {
+        // TODO: Logic for the Library Home page showcases
+        console.log('[Sortium] Home view sorting triggered.');
+    }
   };
 
   // ------------------------------------------
