@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
 import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
-
+import { useState, useEffect } from 'react';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, type PluginSettings, type DataStream } from '../services/settings';
 
 /**
@@ -98,7 +97,6 @@ export default function SettingsMenu() {
 
 				{streams.map((stream) => (
 					<ToggleField
-						key={stream.id}
 						label={stream.name}
 						checked={!!settings.enabledStreams[stream.id]}
 						onChange={(checked) => toggleStream(stream.id, checked)}

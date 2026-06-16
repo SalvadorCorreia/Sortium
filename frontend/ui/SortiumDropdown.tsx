@@ -24,7 +24,7 @@ export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
 		{ label: 'SteamHunters: Median', data: 'sh_median' },
 	];
 
-	const handleChange = (option: { data: string; label: string }) => {
+	const handleChange = async (option: { data: string; label: string }) => {
 		const selectedData = option.data;
 		setSelected(selectedData);
 		saveSettings({ ...currentSettings, lastUsedMetric: selectedData });

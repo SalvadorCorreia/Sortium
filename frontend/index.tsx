@@ -1,6 +1,6 @@
 import { Millennium, definePlugin, IconsModule, sleep } from '@steambrew/client';
 import SettingsMenu from './ui/SettingsMenu';
-import { injectHomeDropdowns, injectCollectionDropdown } from './utils/injectors.tsx';
+import { injectHomeDropdowns, injectCollectionDropdown } from './utils/injectors';
 import { initSettings, getSettings } from './services/settings';
 
 declare global {

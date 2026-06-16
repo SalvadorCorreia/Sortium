@@ -1,10 +1,13 @@
 {
-	"extends": "../tsconfig.json",
-	"compilerOptions": {
-		"types": ["react"],
-		"jsxFactory": "window.SP_REACT.createElement",
-		"jsxFragmentFactory": "window.SP_REACT.Fragment"
-	},
-	"include": ["."],
-	"exclude": ["node_modules", "../webkit"]
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["react"],
+    "jsxFactory": "window.SP_REACT.createElement",
+    "jsxFragmentFactory": "window.SP_REACT.Fragment",
+    "paths": {
+      "*": ["./*"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "../webkit"]
 }
