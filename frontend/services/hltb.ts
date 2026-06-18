@@ -20,24 +20,33 @@ interface CacheEntry {
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
 
-export async function fetchHltbData(appId: string | number): Promise<HltbData | null> {
+/**
+ * Directly fetches raw HLTB data for a single AppID from the public API.
+ * Returns an error flag to prevent caching failed requests.
+ */
+export async function fetchHltbData(appId: string | number): Promise<{ data: HltbData | null; error: boolean }> {
 	try {
 		console.log(`[Sortium] Fetching HLTB data for AppID: ${appId}`);
 
 		const response = await fetch(`https://api.augmentedsteam.com/app/${appId}/v2`);
 
 		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`);
+			console.error(`[Sortium] HTTP error ${response.status} for AppID: ${appId}`);
+			return { data: null, error: true };
 		}
 
 		const json = (await response.json()) as AugmentedSteamResponse;
-		return json.hltb || null;
+		return { data: json.hltb || null, error: false };
 	} catch (error) {
 		console.error(`[Sortium] Failed to fetch HLTB data for ${appId}:`, error);
-		return null;
+		return { data: null, error: true };
 	}
 }
 
+/**
+ * Loops through an array of AppIDs, checking the Lua cache first,
+ * fetching the missing ones in batches, and updating the backend cache.
+ */
 export async function fetchMultipleHltbData(appIds: (string | number)[]): Promise<Record<string, HltbData | null>> {
 	const results: Record<string, HltbData | null> = {};
 	const stringAppIds = appIds.map(String);
@@ -45,7 +54,6 @@ export async function fetchMultipleHltbData(appIds: (string | number)[]): Promis
 	const settings = getSettings();
 	const cacheDays = settings.cacheDays ?? 7;
 
-	// 1. Convert everything to SECONDS instead of milliseconds
 	const cacheExpirySeconds = cacheDays * 24 * 60 * 60;
 	const nowSeconds = Math.floor(Date.now() / 1000);
 
@@ -66,7 +74,6 @@ export async function fetchMultipleHltbData(appIds: (string | number)[]): Promis
 
 	for (const id of stringAppIds) {
 		const entry = cachedData[id];
-		// 2. Check against the current time in SECONDS
 		if (entry && entry.expiry > nowSeconds) {
 			results[id] = entry.data;
 		} else {
@@ -75,29 +82,51 @@ export async function fetchMultipleHltbData(appIds: (string | number)[]): Promis
 	}
 
 	if (missingAppIds.length > 0) {
-		console.log(`[Sortium] Cache misses for ${missingAppIds.length} apps. Fetching from API...`);
-		const newDataToCache: Record<string, CacheEntry> = {};
+		console.log(`[Sortium] Cache misses for ${missingAppIds.length} apps. Fetching sequentially...`);
 
-		const promises = missingAppIds.map(async (id) => {
-			const fetchedData = await fetchHltbData(id);
-			results[id] = fetchedData;
+		let newDataToCache: Record<string, CacheEntry> = {};
+		let currentBatchCount = 0;
 
-			newDataToCache[id] = {
-				data: fetchedData,
-				// 3. Save the new expiry timestamp in SECONDS
-				expiry: nowSeconds + cacheExpirySeconds,
-			};
-		});
+		// Fetch sequentially to prevent triggering WAF burst limits
+		for (const [index, id] of missingAppIds.entries()) {
+			const fetchResult = await fetchHltbData(id);
+			results[id] = fetchResult.data;
 
-		await Promise.all(promises);
+			// Only prep successful fetches for the cache
+			if (!fetchResult.error) {
+				newDataToCache[id] = {
+					data: fetchResult.data,
+					expiry: nowSeconds + cacheExpirySeconds,
+				};
+				currentBatchCount++;
+			}
 
-		try {
-			const savePayload = { stream_id: 'hltb', new_data: newDataToCache };
-			await appendToCache({ args_json: JSON.stringify(savePayload) });
+			// INCREMENTAL SAVE: Save to disk every 20 successful fetches, OR if it's the very last item.
+			// This guarantees progress is saved even if the API throws a 429 rate limit midway through.
+			if (currentBatchCount >= 20 || index === missingAppIds.length - 1) {
+				if (Object.keys(newDataToCache).length > 0) {
+					try {
+						const savePayload = { stream_id: 'hltb', new_data: newDataToCache };
+						await appendToCache({ args_json: JSON.stringify(savePayload) });
+						console.log(`[Sortium] Incrementally saved ${Object.keys(newDataToCache).length} entries to disk.`);
 
-			console.log(`[Sortium] Successfully updated backend cache with ${missingAppIds.length} new entries.`);
-		} catch (e) {
-			console.error('[Sortium] Failed to save to backend cache:', e);
+						// Wipe the temporary holding object for the next batch
+						newDataToCache = {};
+						currentBatchCount = 0;
+					} catch (e) {
+						console.error('[Sortium] Failed to incrementally save to backend cache:', e);
+					}
+				}
+			}
+
+			// Add a 150ms delay between individual requests (approx 6 requests per second)
+			// Break the loop entirely if we hit a 429 to stop hammering the server
+			if (fetchResult.error) {
+				console.warn('[Sortium] Network error detected (likely 429). Halting further requests for this session to respect API limits.');
+				break;
+			} else if (index < missingAppIds.length - 1) {
+				await new Promise((resolve) => setTimeout(resolve, 150));
+			}
 		}
 	} else {
 		console.log('[Sortium] All requested AppIDs were loaded straight from the backend cache!');
