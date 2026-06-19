@@ -40,9 +40,28 @@ export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
 				console.log(`[Sortium] Found ${appIds.length} AppIDs in collection:`, appIds);
 
 				const hltbResults = await fetchMultipleHltbData(appIds);
-				console.log('[Sortium] All HLTB data loaded into client:', hltbResults);
 
-				//TODO: Introduce actual sorting
+				currentColl.allApps.sort((a: any, b: any) => {
+					const getSortValue = (appId: string | number) => {
+						const data = hltbResults[appId];
+						if (!data) return Infinity;
+
+						switch (selectedData) {
+							case 'hltb_main':
+								return data.story || Infinity;
+							case 'hltb_extras':
+								return data.extras || Infinity;
+							case 'hltb_completionist':
+								return data.complete || Infinity;
+							default:
+								return Infinity;
+						}
+					};
+
+					return getSortValue(a.appid) - getSortValue(b.appid);
+				});
+
+				console.log('[Sortium] Collection sorted based on:', selectedData);
 			}
 		} else if (variant === 'default') {
 			// TODO: Logic for the Library Home page showcases
