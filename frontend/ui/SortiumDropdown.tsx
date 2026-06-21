@@ -41,26 +41,40 @@ export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
 
 				const hltbResults = await fetchMultipleHltbData(appIds);
 
-				// Create a copy of the array, sort it, and store it in a variable
-				const sortedApps = [...currentColl.allApps].sort((a: any, b: any) => {
-					const getSortValue = (appId: string | number) => {
-						const data = hltbResults[appId];
-						if (!data) return Infinity;
+				const getSortValue = (appId: string | number) => {
+					const data = hltbResults[appId];
+					if (!data) return Infinity;
 
-						switch (selectedData) {
-							case 'hltb_main':
-								return data.story || Infinity;
-							case 'hltb_extras':
-								return data.extras || Infinity;
-							case 'hltb_completionist':
-								return data.complete || Infinity;
-							default:
-								return Infinity;
+					switch (selectedData) {
+						case 'hltb_main':
+							return data.story || Infinity;
+						case 'hltb_extras':
+							return data.extras || Infinity;
+						case 'hltb_completionist':
+							return data.complete || Infinity;
+						default:
+							return Infinity;
+					}
+				};
+
+				const sortedApps = [...currentColl.allApps]
+					.sort((a: any, b: any) => getSortValue(a.appid) - getSortValue(b.appid))
+					.map((app: any) => {
+						const totalMinutes = getSortValue(app.appid);
+						let timeFormatted = 'No data';
+
+						if (totalMinutes !== Infinity) {
+							const hours = Math.floor(totalMinutes / 60);
+							const minutes = Math.round(totalMinutes % 60);
+							timeFormatted = `${hours}h ${minutes}m`;
 						}
-					};
 
-					return getSortValue(a.appid) - getSortValue(b.appid);
-				});
+						return {
+							name: app.display_name || app.name || 'Unknown Game',
+							time: timeFormatted,
+							id: app.appid,
+						};
+					});
 
 				console.log('[Sortium] Sorted list:', sortedApps);
 			}
