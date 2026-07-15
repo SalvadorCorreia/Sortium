@@ -12,7 +12,7 @@ export async function injectHomeDropdowns(popup: any) {
 			sortiumDropdown.className = 'sortium-dropdown';
 
 			const sortiumRoot = createRoot(sortiumDropdown);
-			sortiumRoot.render(<SortiumDropdown />);
+			sortiumRoot.render(<SortiumDropdown popup={popup} />);
 
 			headerDiv.insertBefore(sortiumDropdown, headerDiv.firstChild!.nextSibling!.nextSibling);
 		}
@@ -29,7 +29,7 @@ export async function injectCollectionDropdown(popup: any) {
 		sortiumDropdown.className = 'sortium-dropdown';
 
 		const sortiumRoot = createRoot(sortiumDropdown);
-		sortiumRoot.render(<SortiumDropdown variant="collection" />);
+		sortiumRoot.render(<SortiumDropdown variant="collection" popup={popup} />);
 
 		collOptionsDiv.insertBefore(sortiumDropdown, collOptionsDiv.firstChild!.nextSibling);
 	}

@@ -10,9 +10,10 @@ declare global {
 
 interface SortiumDropdownProps {
 	variant?: 'default' | 'collection';
+	popup?: any;
 }
 
-export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
+export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownProps) {
 	const currentSettings = getSettings();
 
 	const [selected, setSelected] = useState<string>(currentSettings.lastUsedMetric || 'hltb_main');
@@ -77,6 +78,22 @@ export function SortiumDropdown({ variant = 'default' }: SortiumDropdownProps) {
 					});
 
 				console.log('[Sortium] Sorted list:', sortedApps);
+
+				const collectionModule = findModule((m) => m.YourCollection);
+
+				if (collectionModule && collectionModule.YourCollection && popup) {
+					const nativeContainer = popup.m_popup.document.querySelector(`.${collectionModule.YourCollection}`) as HTMLElement;
+
+					if (nativeContainer) {
+						// Apply display: none!important to ensure Steam's React doesn't override it immediately
+						nativeContainer.style.setProperty('display', 'none', 'important');
+						console.log('[Sortium] Native collection grid successfully hidden.');
+					} else {
+						console.warn('[Sortium] Could not find the native container in the DOM.');
+					}
+				} else {
+					console.warn('[Sortium] Could not locate the collection grid module in Steam.');
+				}
 			}
 		} else if (variant === 'default') {
 			// TODO: Logic for the Library Home page showcases
