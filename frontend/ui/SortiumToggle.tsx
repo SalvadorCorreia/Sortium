@@ -28,7 +28,7 @@ export function SortiumToggle({ initialState = false }: SortiumToggleProps) {
 				fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
 				fontWeight: 'bold',
 				fontSize: '16px',
-				marginLeft: '8px',
+				marginRight: '8px',
 				userSelect: 'none',
 				transition: 'background-color 0.2s ease-in-out, color 0.2s ease-in-out',
 				boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
