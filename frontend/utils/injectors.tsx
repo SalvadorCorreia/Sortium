@@ -21,22 +21,6 @@ export async function injectHomeDropdowns(popup: any) {
 	});
 }
 
-export async function injectCollectionDropdown(popup: any) {
-	const collOptionsDiv = await waitForElement(`div.${findModule((e) => e.CollectionOptions).CollectionOptions}`, popup.m_popup.document);
-	if (!collOptionsDiv) return;
-
-	const oldSortiumDropdown = collOptionsDiv.querySelector('div.sortium-dropdown');
-	if (!oldSortiumDropdown) {
-		const sortiumDropdown = popup.m_popup.document.createElement('div');
-		sortiumDropdown.className = 'sortium-dropdown';
-
-		const sortiumRoot = createRoot(sortiumDropdown);
-		sortiumRoot.render(<SortiumDropdown variant="collection" popup={popup} />);
-
-		collOptionsDiv.insertBefore(sortiumDropdown, collOptionsDiv.firstChild!.nextSibling);
-	}
-}
-
 export async function injectCollectionToggle(popup: any) {
 	const headerModule = findModule((m) => m.Header && m.CollectionName && m.DynamicCollectionLabelAndButton);
 
@@ -81,7 +65,7 @@ export async function injectSortiumGrid(popup: any) {
 		sortiumGridDiv.style.visibility = 'hidden';
 
 		const gridRoot = createRoot(sortiumGridDiv);
-		gridRoot.render(<SortiumGrid />);
+		gridRoot.render(<SortiumGrid popup={popup} />);
 
 		headerDiv.parentNode.insertBefore(sortiumGridDiv, headerDiv.nextSibling);
 	}
