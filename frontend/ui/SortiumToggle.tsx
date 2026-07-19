@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { findModule } from '@steambrew/client';
 
 interface SortiumToggleProps {
 	initialState?: boolean;
+	popup?: any;
 }
 
-export function SortiumToggle({ initialState = false }: SortiumToggleProps) {
+export function SortiumToggle({ initialState = false, popup }: SortiumToggleProps) {
 	const [isActive, setIsActive] = useState(initialState);
 
 	const activeColor = '#2d73ff';
@@ -12,9 +14,52 @@ export function SortiumToggle({ initialState = false }: SortiumToggleProps) {
 	const textColorActive = '#ffffff';
 	const textColorInactive = '#b8b6b4';
 
+	const handleToggle = () => {
+		const nextState = !isActive;
+
+		if (!popup) {
+			console.warn('[Sortium] Popup context missing.');
+			return;
+		}
+
+		const doc = popup.m_popup.document;
+
+		const gridModule = findModule((m) => m.GridWithControls);
+
+		if (gridModule && gridModule.GridWithControls) {
+			const nativeGrid = doc.querySelector(`:not(.sortium-grid) > .${gridModule.GridWithControls}`) as HTMLElement;
+			const customGrid = doc.querySelector('.sortium-grid') as HTMLElement;
+
+			if (nativeGrid && customGrid) {
+				if (nextState) {
+					nativeGrid.style.height = '0px';
+					nativeGrid.style.overflow = 'hidden';
+					nativeGrid.style.visibility = 'hidden';
+
+					customGrid.style.removeProperty('height');
+					customGrid.style.removeProperty('overflow');
+					customGrid.style.removeProperty('visibility');
+				} else {
+					nativeGrid.style.removeProperty('height');
+					nativeGrid.style.removeProperty('overflow');
+					nativeGrid.style.removeProperty('visibility');
+
+					customGrid.style.height = '0px';
+					customGrid.style.overflow = 'hidden';
+					customGrid.style.visibility = 'hidden';
+				}
+				setIsActive(nextState);
+			} else {
+				console.warn('[Sortium] Could not find one or both grids in the DOM.');
+			}
+		} else {
+			console.warn('[Sortium] Could not locate the GridWithControls module.');
+		}
+	};
+
 	return (
 		<div
-			onClick={() => setIsActive(!isActive)}
+			onClick={handleToggle}
 			style={{
 				display: 'flex',
 				alignItems: 'center',
