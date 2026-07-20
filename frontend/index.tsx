@@ -1,7 +1,8 @@
 import { Millennium, definePlugin, IconsModule, sleep } from '@steambrew/client';
-import SettingsMenu from './ui/SettingsMenu';
-import { injectHomeDropdowns, injectCollectionToggle, injectSortiumGrid } from './utils/injectors';
 import { initSettings, getSettings } from './services/settings';
+import SettingsMenu from './ui/SettingsMenu';
+import { logger } from './services/logger';
+import { injectHomeDropdowns, injectCollectionToggle, injectSortiumGrid } from './utils/injectors';
 
 declare global {
 	var MainWindowBrowserManager: any;
@@ -13,7 +14,7 @@ async function OnPopupCreation(popup: any) {
 	if (popup.m_strName === 'SP Desktop_uid0') {
 		var mwbm = undefined;
 		while (!mwbm) {
-			console.log('[Sortium] Waiting for MainWindowBrowserManager');
+			logger.info('Waiting for MainWindowBrowserManager');
 			try {
 				mwbm = MainWindowBrowserManager;
 			} catch {
@@ -21,18 +22,27 @@ async function OnPopupCreation(popup: any) {
 			}
 		}
 
-		console.log('[Sortium] Registering callback');
+		logger.info('Registering finished-request callback');
 		MainWindowBrowserManager.m_browser.on('finished-request', async (currentURL: any, previousURL: any) => {
 			void currentURL;
 			void previousURL;
 
 			const settings = getSettings();
+			logger.info(`Navigation detected. Path: ${MainWindowBrowserManager.m_lastLocation.pathname}`);
 
-			if (MainWindowBrowserManager.m_lastLocation.pathname === '/library/home' && settings.enableLibraryButton) {
-				await injectHomeDropdowns(popup);
-			} else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith('/library/collection/') && settings.enableCollectionButton) {
-				await injectCollectionToggle(popup);
-				await injectSortiumGrid(popup);
+			try {
+				if (MainWindowBrowserManager.m_lastLocation.pathname === '/library/home' && settings.enableLibraryButton) {
+					logger.info('Injecting Library Home UI...');
+					await injectHomeDropdowns(popup);
+					logger.info('Injection successful.');
+				} else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith('/library/collection/') && settings.enableCollectionButton) {
+					logger.info('Injecting Collection UI...');
+					await injectCollectionToggle(popup);
+					await injectSortiumGrid(popup);
+					logger.info('Injection successful.');
+				}
+			} catch (err) {
+				logger.error('Injection crashed:', err);
 			}
 		});
 	}
