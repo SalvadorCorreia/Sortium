@@ -10,19 +10,22 @@ declare global {
 
 async function OnPopupCreation(popup: any) {
 	await initSettings();
-	await sleep(1000);
+
 	if (popup.m_strName === 'SP Desktop_uid0') {
-		var mwbm = undefined;
-		while (!mwbm) {
-			logger.info('Waiting for MainWindowBrowserManager');
+		logger.info('Waiting for stable Steam UI...');
+
+		while (true) {
 			try {
-				mwbm = MainWindowBrowserManager;
-			} catch {
-				await sleep(100);
-			}
+				const path = MainWindowBrowserManager?.m_lastLocation?.pathname;
+				if (path && path !== '/init' && path !== '/') {
+					break;
+				}
+			} catch {}
+			await sleep(100);
 		}
 
-		logger.info('Registering finished-request callback');
+		logger.info('Steam UI is stable. Registering listeners.');
+
 		MainWindowBrowserManager.m_browser.on('finished-request', async (currentURL: any, previousURL: any) => {
 			void currentURL;
 			void previousURL;
@@ -49,7 +52,7 @@ async function OnPopupCreation(popup: any) {
 }
 
 export default definePlugin(() => {
-	console.log('[Sortium] Frontend plugin registered.');
+	logger.info('Frontend plugin registered.');
 
 	Millennium.AddWindowCreateHook!(OnPopupCreation);
 
