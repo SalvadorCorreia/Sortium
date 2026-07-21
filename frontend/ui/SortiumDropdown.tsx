@@ -77,6 +77,8 @@ export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownP
 						};
 					});
 
+				logger.info(`Successfully sorted ${sortedApps.length} games. Ready for grid rendering.`);
+
 				const collectionModule = findModule((m) => m.YourCollection);
 
 				if (collectionModule && collectionModule.YourCollection && popup) {

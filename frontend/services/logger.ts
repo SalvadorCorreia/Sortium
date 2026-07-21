@@ -1,17 +1,17 @@
-import { getSettings } from '../services/settings';
+let loggingEnabled = true;
+
+export function setLoggingEnabled(enabled: boolean) {
+	loggingEnabled = enabled;
+}
 
 const TAG = '[Sortium]';
 
 export const logger = {
 	info: (...args: any[]) => {
-		if (getSettings().enableLogging) {
-			console.log(TAG, ...args);
-		}
+		if (loggingEnabled) console.log(TAG, ...args);
 	},
 	warn: (...args: any[]) => {
-		if (getSettings().enableLogging) {
-			console.warn(TAG, ...args);
-		}
+		if (loggingEnabled) console.warn(TAG, ...args);
 	},
 	error: (...args: any[]) => {
 		console.error(TAG, ...args);
