@@ -1,18 +1,23 @@
-window.FindSteamHash = function(targetHash) {
-    let foundMatches = [];
+window.FindSteamHash = function(...targetHashes) {
+    const hashesToFind = targetHashes
+        .flat()
+        .flatMap(arg => typeof arg === 'string' ? arg.split(/\s+/) : arg)
+        .filter(hash => hash && hash.trim() !== '');
     
-    // Tap into Steam's Webpack instance
+    let foundMatches = {};
+    
+    hashesToFind.forEach(hash => foundMatches[hash] = []);
+    
     window.webpackChunksteamui.push([[Math.random()], {}, (req) => {
         for (const key of Object.keys(req.m)) {
             const module = req(key);
             
-            // Check if the module exists and is an object
             if (module && typeof module === 'object') {
-                // Loop through every exported property in the module
                 for (const propName in module) {
-                    // If the value matches the hash we are looking for
-                    if (module[propName] === targetHash) {
-                        foundMatches.push({
+                    const value = module[propName];
+                    
+                    if (hashesToFind.includes(value)) {
+                        foundMatches[value].push({
                             module: module,
                             readableName: propName
                         });
@@ -22,64 +27,125 @@ window.FindSteamHash = function(targetHash) {
         }
     }]);
     
-    if (foundMatches.length > 0) {
-        console.log(`%c[Scanner] Found ${foundMatches.length} match(es) for hash '${targetHash}':`, 'color: #00ffff; font-weight: bold;');
-        foundMatches.forEach(match => {
-            console.log(`-> Readable Name: %c${match.readableName}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
-        });
-        return foundMatches[0];
-    } else {
-        console.error(`[Scanner] Could not find any module exporting the hash '${targetHash}'.`);
-    }
+    let summaryText = "";
+    
+    hashesToFind.forEach(hash => {
+        const matches = foundMatches[hash];
+        if (matches.length > 0) {
+            console.log(`%c[Scanner] Found ${matches.length} match(es) for hash '${hash}':`, 'color: #00ffff; font-weight: bold;');
+            matches.forEach(match => {
+                console.log(`-> Readable Name: %c${match.readableName}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
+            });
+            
+            const names = matches.map(m => m.readableName).join(', ');
+            summaryText += `"${names}": "${hash}",\n`;
+        } else {
+            console.error(`[Scanner] Could not find any module exporting the hash '${hash}'.`);
+            summaryText += `"UNKNOWN": "${hash}",\n`;
+        }
+    });
+    
+    console.log("%c--- COPY/PASTE SUMMARY ---", "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`{\n${summaryText.trim()}\n}`);
+    
+    return foundMatches;
 }
 
-window.FindAllSteamHashes = function(targetHash) {
-    let foundMatches = [];
+window.FindAllSteamHashes = function(...targetHashes) {
+    const hashesToFind = targetHashes
+        .flat()
+        .flatMap(arg => typeof arg === 'string' ? arg.split(/\s+/) : arg)
+        .filter(hash => hash && hash.trim() !== '');
+    
+    let foundMatches = {};
+    hashesToFind.forEach(hash => foundMatches[hash] = []);
     
     window.webpackChunksteamui.push([[Math.random()], {}, (req) => {
         for (const key of Object.keys(req.m)) {
             const module = req(key);
             if (module && typeof module === 'object') {
                 for (const propName in module) {
-                    if (module[propName] === targetHash) {
-                        foundMatches.push({ readableName: propName, module: module });
+                    const value = module[propName];
+                    if (hashesToFind.includes(value)) {
+                        foundMatches[value].push({
+                            readableName: propName,
+                            module: module
+                        });
                     }
                 }
             }
         }
     }]);
     
-    if (foundMatches.length > 0) {
-        console.log(`%c[Scanner] Found ${foundMatches.length} match(es) for '${targetHash}':`, 'color: #00ffff; font-weight: bold;');
-        foundMatches.forEach((match, index) => {
-            console.log(`%cMatch ${index + 1}: ${match.readableName}`, 'color: #ffff00; font-weight: bold;');
-            console.log(match.module);
-        });
-    } else {
-        console.error(`[Scanner] Could not find any match.`);
-    }
+    let summaryText = "";
+    
+    hashesToFind.forEach(hash => {
+        const matches = foundMatches[hash];
+        if (matches.length > 0) {
+            console.log(`%c[Scanner] Found ${matches.length} match(es) for hash '${hash}':`, 'color: #00ffff; font-weight: bold;');
+            matches.forEach((match, index) => {
+                console.log(`%c-> Match ${index + 1}: ${match.readableName}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
+            });
+            
+            const names = matches.map(m => m.readableName).join(', ');
+            summaryText += `"${names}": "${hash}",\n`;
+        } else {
+            console.error(`[Scanner] Could not find any match for '${hash}'.`);
+            summaryText += `"UNKNOWN": "${hash}",\n`;
+        }
+    });
+    
+    console.log("%c--- COPY/PASTE SUMMARY ---", "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`{\n${summaryText.trim()}\n}`);
+    
+    return foundMatches;
 }
 
+window.FindSteamClass = function(...targetProperties) {
+    const propsToFind = targetProperties
+        .flat()
+        .flatMap(arg => typeof arg === 'string' ? arg.split(/\s+/) : arg)
+        .filter(prop => prop && prop.trim() !== '');
 
+    let foundMatches = {};
+    propsToFind.forEach(prop => foundMatches[prop] = []);
 
-window.FindSteamClass = function(targetProperty) {
-    let foundModules = [];
-    // Tap into Steam's Webpack instance
     window.webpackChunksteamui.push([[Math.random()], {}, (req) => {
         for (const key of Object.keys(req.m)) {
             const module = req(key);
-            // Check if the module exists and contains the property we want
-            if (module && module[targetProperty]) {
-                foundModules.push(module);
+            if (module && typeof module === 'object') {
+                propsToFind.forEach(prop => {
+                    if (module[prop]) {
+                        foundMatches[prop].push({
+                            hash: module[prop],
+                            module: module
+                        });
+                    }
+                });
             }
         }
     }]);
-    
-    if (foundModules.length > 0) {
-        console.log(`%c[Scanner] Found ${foundModules.length} module(s) containing '${targetProperty}':`, 'color: #00ff00; font-weight: bold;');
-        foundModules.forEach(m => console.log(m));
-        return foundModules[0]; // Returns the first match so you can inspect it
-    } else {
-        console.error(`[Scanner] Could not find any module containing '${targetProperty}'. Are you sure the UI element is currently loaded on the screen?`);
-    }
+
+    let summaryText = "";
+
+    propsToFind.forEach(prop => {
+        const matches = foundMatches[prop];
+        if (matches.length > 0) {
+            console.log(`%c[Scanner] Found ${matches.length} module(s) containing '${prop}':`, 'color: #00ff00; font-weight: bold;');
+            matches.forEach((match, index) => {
+                console.log(`%c-> Match ${index + 1}: Hash = ${match.hash}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
+            });
+
+            const hashes = matches.map(m => m.hash).join(', ');
+            summaryText += `"${prop}": "${hashes}",\n`;
+        } else {
+            console.error(`[Scanner] Could not find any module containing '${prop}'. Are you sure the UI element is currently loaded?`);
+            summaryText += `"${prop}": "NOT_FOUND",\n`;
+        }
+    });
+
+    console.log("%c--- COPY/PASTE SUMMARY ---", "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`{\n${summaryText.trim()}\n}`);
+
+    return foundMatches;
 }
