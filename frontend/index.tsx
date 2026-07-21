@@ -12,8 +12,6 @@ async function OnPopupCreation(popup: any) {
 	await initSettings();
 
 	if (popup.m_strName === 'SP Desktop_uid0') {
-		logger.info('Waiting for stable Steam UI...');
-
 		while (true) {
 			try {
 				const path = MainWindowBrowserManager?.m_lastLocation?.pathname;
@@ -24,28 +22,23 @@ async function OnPopupCreation(popup: any) {
 			await sleep(100);
 		}
 
-		logger.info('Steam UI is stable. Registering listeners.');
+		logger.info('Steam UI stable. Navigation listeners registered.');
 
 		MainWindowBrowserManager.m_browser.on('finished-request', async (currentURL: any, previousURL: any) => {
 			void currentURL;
 			void previousURL;
 
 			const settings = getSettings();
-			logger.info(`Navigation detected. Path: ${MainWindowBrowserManager.m_lastLocation.pathname}`);
 
 			try {
 				if (MainWindowBrowserManager.m_lastLocation.pathname === '/library/home' && settings.enableLibraryButton) {
-					logger.info('Injecting Library Home UI...');
 					await injectHomeDropdowns(popup);
-					logger.info('Injection successful.');
 				} else if (MainWindowBrowserManager.m_lastLocation.pathname.startsWith('/library/collection/') && settings.enableCollectionButton) {
-					logger.info('Injecting Collection UI...');
 					await injectCollectionToggle(popup);
 					await injectSortiumGrid(popup);
-					logger.info('Injection successful.');
 				}
 			} catch (err) {
-				logger.error('Injection crashed:', err);
+				logger.error('Failed to inject UI on navigation:', err);
 			}
 		});
 	}

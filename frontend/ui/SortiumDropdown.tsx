@@ -2,6 +2,7 @@ import { Dropdown, findModule } from '@steambrew/client';
 import { useState } from 'react';
 import { getSettings, saveSettings } from '../services/settings';
 import { fetchMultipleHltbData } from '../services/hltb';
+import { logger } from '../services/logger';
 
 declare global {
 	var collectionStore: any;
@@ -29,7 +30,6 @@ export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownP
 		const selectedData = option.data;
 		setSelected(selectedData);
 		saveSettings({ ...currentSettings, lastUsedMetric: selectedData });
-		console.log('[Sortium] Sort category changed to:', selectedData);
 
 		if (variant === 'collection') {
 			const currentCollectionId = uiStore?.currentGameListSelection?.strCollectionId;
@@ -38,7 +38,7 @@ export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownP
 				const currentColl = collectionStore.GetCollection(currentCollectionId);
 				const appIds = currentColl.allApps.map((app: any) => app.appid);
 
-				console.log(`[Sortium] Found ${appIds.length} AppIDs in collection:`, appIds);
+				logger.info(`Processing collection sorting for ${appIds.length} games...`);
 
 				const hltbResults = await fetchMultipleHltbData(appIds);
 
@@ -77,8 +77,6 @@ export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownP
 						};
 					});
 
-				console.log('[Sortium] Sorted list:', sortedApps);
-
 				const collectionModule = findModule((m) => m.YourCollection);
 
 				if (collectionModule && collectionModule.YourCollection && popup) {
@@ -87,17 +85,16 @@ export function SortiumDropdown({ variant = 'default', popup }: SortiumDropdownP
 					if (nativeContainer) {
 						// Apply display: none!important to ensure Steam's React doesn't override it immediately
 						nativeContainer.style.setProperty('display', 'none', 'important');
-						console.log('[Sortium] Native collection grid successfully hidden.');
 					} else {
-						console.warn('[Sortium] Could not find the native container in the DOM.');
+						logger.warn('Native collection container not found in the DOM.');
 					}
 				} else {
-					console.warn('[Sortium] Could not locate the collection grid module in Steam.');
+					logger.warn('Could not locate the collection grid module in Steam.');
 				}
 			}
 		} else if (variant === 'default') {
 			// TODO: Logic for the Library Home page showcases
-			console.log('[Sortium] Home view sorting triggered.');
+			logger.info('Home view sorting triggered (Not yet implemented).');
 		}
 	};
 

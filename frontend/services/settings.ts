@@ -1,4 +1,5 @@
 import { callable } from '@steambrew/client';
+import { logger } from './logger';
 
 // ==============================================================================
 // Type Definitions
@@ -66,6 +67,8 @@ export async function initSettings(): Promise<void> {
 			const res: BackendResponse<DataStream[]> = JSON.parse(streamsJson);
 			if (res.success && res.data) {
 				cachedStreams = res.data;
+			} else {
+				logger.warn('Failed to load data streams from backend:', res.error);
 			}
 		}
 
@@ -74,10 +77,12 @@ export async function initSettings(): Promise<void> {
 			const res: BackendResponse<PluginSettings> = JSON.parse(settingsJson);
 			if (res.success && res.data) {
 				cachedSettings = { ...DEFAULT_SETTINGS, ...res.data };
+			} else {
+				logger.warn('Failed to load settings from backend:', res.error);
 			}
 		}
 	} catch (error) {
-		console.error('[Sortium] Initialization failure:', error);
+		logger.error('Initialization failure during IPC call:', error);
 	}
 }
 
@@ -96,21 +101,23 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	try {
 		const payload = { settings_json: JSON.stringify(settings) };
 		const responseJson = await SaveSettingsRpc(payload);
+
 		if (!responseJson) {
+			logger.warn('SaveSettingsRpc returned no response. Save aborted.');
 			cachedSettings = previousSettings;
 			return false;
 		}
 
 		const res: BackendResponse<void> = JSON.parse(responseJson);
 		if (!res.success) {
-			console.error('[Sortium] Failed to save settings to disk:', res.error);
+			logger.error('Failed to save settings to disk:', res.error);
 			cachedSettings = previousSettings;
 			return false;
 		}
 
 		return true;
 	} catch (error) {
-		console.error('[Sortium] Exception during settings save operation:', error);
+		logger.error('Exception during settings save operation:', error);
 		cachedSettings = previousSettings;
 		return false;
 	}

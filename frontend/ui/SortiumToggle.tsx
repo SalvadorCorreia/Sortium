@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { findModule } from '@steambrew/client';
 import { getSettings, saveSettings } from '../services/settings';
+import { logger } from '../services/logger';
 
 interface SortiumToggleProps {
 	popup?: any;
@@ -18,7 +19,7 @@ export function SortiumToggle({ popup }: SortiumToggleProps) {
 		const nextState = !isActive;
 
 		if (!popup) {
-			console.warn('[Sortium] Popup context missing.');
+			logger.warn('Popup context missing. Cannot execute toggle.');
 			return;
 		}
 
@@ -53,10 +54,10 @@ export function SortiumToggle({ popup }: SortiumToggleProps) {
 				await saveSettings({ ...settings, sortiumViewActive: nextState });
 				setIsActive(nextState);
 			} else {
-				console.warn('[Sortium] Could not find one or both grids in the DOM.');
+				logger.warn('Could not find one or both grids in the DOM. Toggle aborted.');
 			}
 		} else {
-			console.warn('[Sortium] Could not locate the GridWithControls module.');
+			logger.warn('Could not locate the GridWithControls module. Steam UI may have changed.');
 		}
 	};
 
