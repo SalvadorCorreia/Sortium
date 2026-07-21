@@ -55,18 +55,19 @@ export async function injectSortiumGrid(popup: any) {
 	const headerDiv = await waitForElement(`div.${headerModule.Header}`, popup.m_popup.document);
 	if (!headerDiv || !headerDiv.parentNode) return;
 
-	const oldSortiumGrid = headerDiv.parentNode.querySelector('div.sortium-custom-grid-container');
-	if (!oldSortiumGrid) {
-		const sortiumGridDiv = popup.m_popup.document.createElement('div');
-		sortiumGridDiv.className = 'sortium-grid';
+	const oldSortiumGrid = headerDiv.parentNode.querySelector('div.sortium-grid');
 
-		sortiumGridDiv.style.height = '0px';
-		sortiumGridDiv.style.overflow = 'hidden';
-		sortiumGridDiv.style.visibility = 'hidden';
-
-		const gridRoot = createRoot(sortiumGridDiv);
-		gridRoot.render(<SortiumGrid popup={popup} />);
-
-		headerDiv.parentNode.insertBefore(sortiumGridDiv, headerDiv.nextSibling);
+	if (oldSortiumGrid) {
+		oldSortiumGrid.remove();
 	}
+
+	const sortiumGridDiv = popup.m_popup.document.createElement('div');
+	sortiumGridDiv.className = 'sortium-grid';
+
+	sortiumGridDiv.style.height = '0px';
+
+	const gridRoot = createRoot(sortiumGridDiv);
+	gridRoot.render(<SortiumGrid popup={popup} />);
+
+	headerDiv.parentNode.insertBefore(sortiumGridDiv, headerDiv.nextSibling);
 }

@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
+import { getSettings } from '../services/settings';
 
 interface SortiumGridProps {
 	children?: ReactNode;
@@ -10,8 +11,23 @@ interface SortiumGridProps {
 export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const collectionModule = findModule((m) => m.GridWithControls && m.CollectionOptions) || {};
 
+	const settings = getSettings();
+	const [isActive] = useState(settings.sortiumViewActive);
+
+	let containerStyle: React.CSSProperties = {
+		display: 'flex',
+		flexDirection: 'column',
+		width: '100%',
+	};
+
+	if (!isActive) {
+		containerStyle.height = '0px';
+		containerStyle.overflow = 'hidden';
+		containerStyle.visibility = 'hidden';
+	}
+
 	return (
-		<div className={collectionModule.GridWithControls} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
 				<SortiumDropdown variant="collection" popup={popup} />
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>

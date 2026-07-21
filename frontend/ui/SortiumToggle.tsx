@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { findModule } from '@steambrew/client';
+import { getSettings, saveSettings } from '../services/settings';
 
 interface SortiumToggleProps {
-	initialState?: boolean;
 	popup?: any;
 }
 
-export function SortiumToggle({ initialState = false, popup }: SortiumToggleProps) {
-	const [isActive, setIsActive] = useState(initialState);
+export function SortiumToggle({ popup }: SortiumToggleProps) {
+	const [isActive, setIsActive] = useState(getSettings().sortiumViewActive);
 
 	const activeColor = '#2d73ff';
 	const inactiveColor = '#39424d';
 	const textColorActive = '#ffffff';
 	const textColorInactive = '#b8b6b4';
 
-	const handleToggle = () => {
+	const handleToggle = async () => {
 		const nextState = !isActive;
 
 		if (!popup) {
@@ -23,12 +23,13 @@ export function SortiumToggle({ initialState = false, popup }: SortiumToggleProp
 		}
 
 		const doc = popup.m_popup.document;
-
 		const gridModule = findModule((m) => m.GridWithControls);
 
 		if (gridModule && gridModule.GridWithControls) {
-			const nativeGrid = doc.querySelector(`:not(.sortium-grid) > .${gridModule.GridWithControls}`) as HTMLElement;
-			const customGrid = doc.querySelector('.sortium-grid') as HTMLElement;
+			const grids = doc.querySelectorAll(`.${gridModule.GridWithControls}`);
+
+			const customGrid = grids[0] as HTMLElement;
+			const nativeGrid = grids[1] as HTMLElement;
 
 			if (nativeGrid && customGrid) {
 				if (nextState) {
@@ -48,6 +49,8 @@ export function SortiumToggle({ initialState = false, popup }: SortiumToggleProp
 					customGrid.style.overflow = 'hidden';
 					customGrid.style.visibility = 'hidden';
 				}
+				const settings = getSettings();
+				await saveSettings({ ...settings, sortiumViewActive: nextState });
 				setIsActive(nextState);
 			} else {
 				console.warn('[Sortium] Could not find one or both grids in the DOM.');

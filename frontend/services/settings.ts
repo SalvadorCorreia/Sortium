@@ -18,6 +18,7 @@ export interface DataStream {
 export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	lastUsedMetric: string;
+	sortiumViewActive: boolean;
 	cacheDays: number;
 	enableLogging: boolean;
 	enableLibraryButton: boolean;
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 		sh: true,
 	},
 	lastUsedMetric: 'hltb_main',
+	sortiumViewActive: false,
 	cacheDays: 7,
 	enableLogging: true,
 	enableLibraryButton: true,
