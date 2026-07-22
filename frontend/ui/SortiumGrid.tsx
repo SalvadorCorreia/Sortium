@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
+import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings } from '../services/settings';
 
 interface SortiumGridProps {
@@ -44,20 +45,19 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 				className="sortium-custom-grid"
 				style={{
 					display: 'grid',
-					gridTemplateColumns: 'repeat(auto-fill, 220px)',
-					gridAutoRows: '330px',
+					gridTemplateColumns: 'repeat(auto-fill, 110px)',
+					gridAutoRows: '165px',
 					gap: '24px 16px',
 					padding: '24px 32px',
 					width: '100%',
 					boxSizing: 'border-box',
 				}}
 			>
-				<div style={{ backgroundColor: '#2a475e', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#66c0f4' }}>
-					Placeholder Game 1
-				</div>
-				<div style={{ backgroundColor: '#2a475e', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#66c0f4' }}>
-					Placeholder Game 2
-				</div>
+				<SortiumCapsule title="Test Game 1" metricText="10 Hours" />
+				<SortiumCapsule title="Test Game 2" metricText="15 Hours" />
+				<SortiumCapsule title="Test Game 3" metricText="20 Hours" />
+				<SortiumCapsule title="Test Game 4" metricText="25 Hours" />
+				<SortiumCapsule title="Test Game 5" metricText="30 Hours" />
 				{children}
 			</div>
 		</div>
