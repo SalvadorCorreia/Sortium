@@ -18,14 +18,10 @@ export function SortiumCapsule({
 
 	return (
 		<div role="gridcell" style={{ display: 'contents' }}>
-			<div
-				className={`${layoutModule.Draggable} ${layoutModule.Short} ${layoutModule.HoversEnabled} ${layoutModule.Small} ${dragModule.Draggable}`}
-				draggable="true"
-				onDragStart={(e) => e.preventDefault()}
-			>
+			<div className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`} draggable="false">
 				<div role="link" className={`${layoutModule.LibraryItemBox} ${layoutModule.Portrait} ${layoutModule.InCollection} Panel`} tabIndex={0}>
 					<div
-						className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${imageModule.Short} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
+						className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
 					>
 						<img className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt={title} />
 					</div>
