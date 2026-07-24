@@ -21,7 +21,7 @@ export async function injectHomeDropdowns(popup: any) {
 			sortiumDropdown.className = 'sortium-dropdown';
 
 			const sortiumRoot = createRoot(sortiumDropdown);
-			sortiumRoot.render(<SortiumDropdown popup={popup} />);
+			sortiumRoot.render(<SortiumDropdown />);
 
 			headerDiv.insertBefore(sortiumDropdown, headerDiv.firstChild!.nextSibling!.nextSibling);
 		}

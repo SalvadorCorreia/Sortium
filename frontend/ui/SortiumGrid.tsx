@@ -57,7 +57,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
-				<SortiumDropdown variant="collection" popup={popup} />
+				<SortiumDropdown variant="collection" />
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>
 			</div>
 
