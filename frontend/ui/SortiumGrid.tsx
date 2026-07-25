@@ -75,11 +75,11 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 				<div ref={customGridRef} role="grid" className={`${gridModule.CSSGrid} ${yourCollectionModule.YourCollection} Panel sortium-custom-grid`}>
 					<div role="row" aria-rowindex={1} style={{ display: 'contents' }}>
-						<SortiumCapsule title="Test Game 1" metricText="10 Hours" />
-						<SortiumCapsule title="Test Game 2" metricText="15 Hours" />
-						<SortiumCapsule title="Test Game 3" metricText="20 Hours" />
-						<SortiumCapsule title="Test Game 4" metricText="25 Hours" />
-						<SortiumCapsule title="Test Game 5" metricText="30 Hours" />
+						<SortiumCapsule appId={400} metricText="10 Hours" />
+						<SortiumCapsule appId={400} metricText="15 Hours" />
+						<SortiumCapsule appId={400} metricText="20 Hours" />
+						<SortiumCapsule appId={400} metricText="25 Hours" />
+						<SortiumCapsule appId={400} metricText="30 Hours" />
 						{children}
 					</div>
 				</div>

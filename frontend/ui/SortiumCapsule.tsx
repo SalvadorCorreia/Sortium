@@ -1,20 +1,25 @@
 import { findModule } from '@steambrew/client';
 
+declare global {
+	var appStore: any;
+}
+
 interface SortiumCapsuleProps {
-	title?: string;
-	imageSrc?: string;
+	appId: number;
 	metricText?: string;
 }
 
-export function SortiumCapsule({
-	title = 'Placeholder Game',
-	imageSrc = 'https://steamcdn-a.akamaihd.net/steam/apps/400/library_600x900.jpg',
-	metricText = 'Value',
-}: SortiumCapsuleProps) {
+export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsuleProps) {
 	const glowModule = findModule((m) => m.LibraryImageBackgroundGlow) || {};
 	const layoutModule = findModule((m) => m.CapsuleVisible) || {};
 	const dragModule = findModule((m) => m.GhostContainer) || {};
 	const imageModule = findModule((m) => m.GreyBackground) || {};
+
+	const app = appStore.m_mapApps.get(appId);
+	const title = app?.display_name || `Unknown Game (${appId})`;
+
+	// Checks the app object for native or custom local artwork before falling back to the CDN
+	const imageSrc = app?.assets?.library_capsule || app?.library_capsule || `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900.jpg`;
 
 	return (
 		<div role="gridcell" style={{ display: 'contents' }}>
