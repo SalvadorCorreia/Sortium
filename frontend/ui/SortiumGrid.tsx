@@ -1,8 +1,14 @@
-import { ReactNode, useState, useRef, useLayoutEffect } from 'react';
+import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings } from '../services/settings';
+import { logger } from '../services/logger';
+
+declare global {
+	var uiStore: any;
+	var collectionStore: any;
+}
 
 interface SortiumGridProps {
 	children?: ReactNode;
@@ -18,6 +24,27 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const [isActive] = useState(settings.sortiumViewActive);
 
 	const customGridRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (typeof uiStore !== 'undefined' && typeof collectionStore !== 'undefined') {
+			const currentCollectionId = uiStore.currentGameListSelection?.strCollectionId;
+
+			if (currentCollectionId) {
+				const currentColl = collectionStore.GetCollection(currentCollectionId);
+				if (currentColl && currentColl.allApps) {
+					const appIds = currentColl.allApps.map((app: any) => app.appid);
+					logger.info(`Currently viewing collection: ${currentCollectionId}`);
+					logger.info(`Found ${appIds.length} games:`, appIds);
+				} else {
+					logger.warn(`Could not find apps for collection: ${currentCollectionId}`);
+				}
+			} else {
+				logger.warn('No active collection ID found in uiStore.');
+			}
+		} else {
+			logger.error('uiStore or collectionStore is undefined.');
+		}
+	}, []);
 
 	useLayoutEffect(() => {
 		const doc = popup ? popup.m_popup.document : document;
