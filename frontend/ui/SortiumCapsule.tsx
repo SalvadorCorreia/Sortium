@@ -18,29 +18,26 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 	const app = appStore.m_mapApps.get(appId);
 	const title = app?.display_name || `Unknown Game (${appId})`;
 
-	// Checks the app object for native or custom local artwork before falling back to the CDN
 	const imageSrc = app?.assets?.library_capsule || app?.library_capsule || `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900.jpg`;
 
 	return (
-		<div role="gridcell" style={{ display: 'contents' }}>
-			<div className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`} draggable="false">
-				<div role="link" className={`${layoutModule.LibraryItemBox} ${layoutModule.Portrait} ${layoutModule.InCollection} Panel`} tabIndex={0}>
-					<div
-						className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
-					>
-						<img className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt={title} />
-					</div>
-
-					<div className={`${layoutModule.LibraryItemBoxShine} ${layoutModule.Portrait}`}></div>
+		<div className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`} draggable="false">
+			<div role="link" className={`${layoutModule.LibraryItemBox} ${layoutModule.Portrait} ${layoutModule.InCollection} Panel`} tabIndex={0}>
+				<div
+					className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
+				>
+					<img className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt={title} />
 				</div>
 
-				<div style={{ display: 'none' }}>{title}</div>
+				<div className={`${layoutModule.LibraryItemBoxShine} ${layoutModule.Portrait}`}></div>
+			</div>
 
-				<div className={layoutModule.LibraryItemBoxSubscript}>{metricText}</div>
+			<div style={{ display: 'none' }}>{title}</div>
 
-				<div className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${glowModule.LibraryImageBackgroundGlow}`}>
-					<img role="presentation" className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt="" />
-				</div>
+			<div className={layoutModule.LibraryItemBoxSubscript}>{metricText}</div>
+
+			<div className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${glowModule.LibraryImageBackgroundGlow}`}>
+				<img role="presentation" className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt="" />
 			</div>
 		</div>
 	);

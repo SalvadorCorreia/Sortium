@@ -22,6 +22,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 	const settings = getSettings();
 	const [isActive] = useState(settings.sortiumViewActive);
+	const [appIds, setAppIds] = useState<number[]>([]);
 
 	const customGridRef = useRef<HTMLDivElement>(null);
 
@@ -32,9 +33,9 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 			if (currentCollectionId) {
 				const currentColl = collectionStore.GetCollection(currentCollectionId);
 				if (currentColl && currentColl.allApps) {
-					const appIds = currentColl.allApps.map((app: any) => app.appid);
-					logger.info(`Currently viewing collection: ${currentCollectionId}`);
-					logger.info(`Found ${appIds.length} games:`, appIds);
+					const ids = currentColl.allApps.map((app: any) => app.appid);
+					setAppIds(ids);
+					logger.info(`Loaded ${ids.length} games for collection: ${currentCollectionId}`);
 				} else {
 					logger.warn(`Could not find apps for collection: ${currentCollectionId}`);
 				}
@@ -102,11 +103,11 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 				<div ref={customGridRef} role="grid" className={`${gridModule.CSSGrid} ${yourCollectionModule.YourCollection} Panel sortium-custom-grid`}>
 					<div role="row" aria-rowindex={1} style={{ display: 'contents' }}>
-						<SortiumCapsule appId={400} metricText="10 Hours" />
-						<SortiumCapsule appId={400} metricText="15 Hours" />
-						<SortiumCapsule appId={400} metricText="20 Hours" />
-						<SortiumCapsule appId={400} metricText="25 Hours" />
-						<SortiumCapsule appId={400} metricText="30 Hours" />
+						{appIds.map((id) => (
+							<div key={id} role="gridcell" style={{ display: 'contents' }}>
+								<SortiumCapsule appId={id} metricText="Pending..." />
+							</div>
+						))}
 						{children}
 					</div>
 				</div>
