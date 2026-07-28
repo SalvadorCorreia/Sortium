@@ -18,7 +18,18 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 	const app = appStore.m_mapApps.get(appId);
 	const title = app?.display_name || `Unknown Game (${appId})`;
 
-	const imageSrc = app?.assets?.library_capsule || app?.library_capsule || `https://steamcdn-a.akamaihd.net/steam/apps/${appId}/library_600x900.jpg`;
+	let imageSrc = `/assets/${appId}/library_600x900.jpg`;
+
+	if (app) {
+		if (typeof app.GetLibraryCapsuleURL === 'function') {
+			imageSrc = app.GetLibraryCapsuleURL();
+		} else {
+			const filename = app.m_strLibraryCapsuleFilename || app.library_capsule_filename;
+			if (filename) {
+				imageSrc = `/assets/${appId}/${filename}`;
+			}
+		}
+	}
 
 	return (
 		<div className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`} draggable="false">
