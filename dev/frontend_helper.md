@@ -239,3 +239,90 @@ window.OptimizeModuleQueries = function(...targetHashes) {
         moduleIndex++;
     });
 };
+
+window.FindSteamMethods = function(...targetKeywords) {
+    const keywordsToFind = targetKeywords
+        .flat()
+        .flatMap(arg => typeof arg === 'string' ? arg.split(/\s+/) : arg)
+        .filter(kw => kw && kw.trim() !== '')
+        .map(kw => kw.toLowerCase()); // Case-insensitive search
+
+    let foundMatches = {};
+    keywordsToFind.forEach(kw => foundMatches[kw] = []);
+
+    window.webpackChunksteamui.push([[Math.random()], {}, (req) => {
+        for (const key of Object.keys(req.m)) {
+            const module = req(key);
+            if (module && typeof module === 'object') {
+                for (const propName in module) {
+                    const value = module[propName];
+
+                    // Helper to check if it's a function and add it if it matches
+                    const checkAndAdd = (name, targetFunc, parentModule) => {
+                        if (typeof targetFunc === 'function') {
+                            const funcNameLower = (targetFunc.name || '').toLowerCase();
+                            const propNameLower = (name || '').toLowerCase();
+
+                            keywordsToFind.forEach(kw => {
+                                if (funcNameLower.includes(kw) || propNameLower.includes(kw)) {
+                                    // Avoid adding the exact same function reference twice
+                                    if (!foundMatches[kw].some(m => m.func === targetFunc)) {
+                                        foundMatches[kw].push({
+                                            module: parentModule,
+                                            propName: name,
+                                            funcName: targetFunc.name || '(anonymous)',
+                                            func: targetFunc
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    };
+
+                    // 1. Check top-level exports
+                    checkAndAdd(propName, value, module);
+
+                    // 2. Check one level deep (where stores/classes keep their methods)
+                    if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        try {
+                            // Check both the object itself and its prototype chain for class methods
+                            const proto = Object.getPrototypeOf(value);
+                            const source = proto && proto !== Object.prototype ? proto : value;
+
+                            for (const subProp of Object.getOwnPropertyNames(source)) {
+                                // Skip constructor and obvious internal React/Webpack properties
+                                if (subProp === 'constructor' || subProp.startsWith('__')) continue;
+                                checkAndAdd(`${propName}.${subProp}`, source[subProp], module);
+                            }
+                        } catch (e) {
+                            // Ignore restricted cross-origin or strict mode objects
+                        }
+                    }
+                }
+            }
+        }
+    }]);
+
+    let summaryText = "";
+
+    keywordsToFind.forEach(kw => {
+        const matches = foundMatches[kw];
+        if (matches.length > 0) {
+            console.log(`%c[Scanner] Found ${matches.length} method(s) matching '${kw}':`, 'color: #00ff00; font-weight: bold;');
+            matches.forEach((match, index) => {
+                console.log(`%c-> Match ${index + 1}: ${match.propName}()`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module, '\nFunction Reference:', match.func);
+            });
+
+            const names = matches.map(m => m.propName).join(', ');
+            summaryText += `"${kw}": "${names}",\n`;
+        } else {
+            console.error(`[Scanner] Could not find any method matching '${kw}'.`);
+            summaryText += `"${kw}": "NOT_FOUND",\n`;
+        }
+    });
+
+    console.log("%c--- COPY/PASTE SUMMARY ---", "color: #00ff00; font-weight: bold; font-size: 14px;");
+    console.log(`{\n${summaryText.trim()}\n}`);
+
+    return foundMatches;
+};
