@@ -24,6 +24,8 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const [isActive] = useState(settings.sortiumViewActive);
 	const [appIds, setAppIds] = useState<number[]>([]);
 
+	const [activeMetric, setActiveMetric] = useState<string>(settings.lastUsedMetric || 'hltb_main');
+
 	const customGridRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -46,6 +48,10 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 			logger.error('uiStore or collectionStore is undefined.');
 		}
 	}, []);
+
+	useEffect(() => {
+		logger.info(`Grid registered metric change. Active metric: ${activeMetric}`);
+	}, [activeMetric]);
 
 	useLayoutEffect(() => {
 		const doc = popup ? popup.m_popup.document : document;
@@ -85,7 +91,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
-				<SortiumDropdown variant="collection" />
+				<SortiumDropdown variant="collection" onSortChange={(metric) => setActiveMetric(metric)} />
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>
 			</div>
 
