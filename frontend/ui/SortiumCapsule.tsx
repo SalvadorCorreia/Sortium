@@ -1,4 +1,4 @@
-import { findModule } from '@steambrew/client';
+import { findModule, Navigation } from '@steambrew/client';
 
 declare global {
 	var appStore: any;
@@ -31,8 +31,17 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 		}
 	}
 
+	const handleClick = () => {
+		Navigation.Navigate(`/library/app/${appId}`);
+	};
+
 	return (
-		<div className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`} draggable="false">
+		<div
+			className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`}
+			draggable="false"
+			onClick={handleClick}
+			style={{ cursor: 'pointer' }}
+		>
 			<div role="link" className={`${layoutModule.LibraryItemBox} ${layoutModule.Portrait} ${layoutModule.InCollection} Panel`} tabIndex={0}>
 				<div
 					className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
