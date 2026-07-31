@@ -2,10 +2,6 @@ import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader 
 import { useState, useEffect } from 'react';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, type PluginSettings, type DataStream } from '../services/settings';
 
-/**
- * Renders the interactive settings interface for the Millennium plugin menu.
- * Consumes no props, manages internal configuration state asynchronously, and returns the React node for the settings view.
- */
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
 	const [streams, setStreams] = useState<DataStream[]>([]);
@@ -13,7 +9,6 @@ export default function SettingsMenu() {
 	useEffect(() => {
 		let isMounted = true;
 
-		// Bridging to the Lua backend via IPC is asynchronous, so we defer rendering the actual settings until the data is fully loaded.
 		initSettings().then(() => {
 			if (isMounted) {
 				setSettingsState(getSettings());
@@ -30,14 +25,18 @@ export default function SettingsMenu() {
 		return <Field label="Loading Sortium Configuration..." />;
 	}
 
-	// Event Handlers
+	const toggleSortiumViewActive = async (checked: boolean) => {
+		const newSettings = { ...settings, sortiumViewActive: checked };
+		setSettingsState(newSettings);
+		await saveSettings(newSettings);
+	};
+
 	const toggleStream = async (streamId: string, checked: boolean) => {
 		const newSettings = {
 			...settings,
 			enabledStreams: { ...settings.enabledStreams, [streamId]: checked },
 		};
 		setSettingsState(newSettings);
-		// Persist to Lua backend immediately to prevent state desync if the user closes the window quickly.
 		await saveSettings(newSettings);
 	};
 
@@ -73,6 +72,14 @@ export default function SettingsMenu() {
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>User Interface</DialogControlsSectionHeader>
 				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Choose where the Sortium sorting button should be injected within Steam.</div>
+
+				<ToggleField
+					label="Enable Sortium View by Default"
+					description="Automatically activate the custom Sortium grid when opening collections."
+					checked={settings.sortiumViewActive}
+					onChange={toggleSortiumViewActive}
+					bottomSeparator="standard"
+				/>
 				<ToggleField
 					label="Enable Library Button"
 					description="Show the sorting button on the main Library home page."
@@ -135,6 +142,7 @@ export default function SettingsMenu() {
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Debug Status</DialogControlsSectionHeader>
+				<Field label="Sortium View State" description={settings.sortiumViewActive ? 'Active' : 'Inactive'} bottomSeparator="standard" />
 				<Field label="Last Used Metric" description={settings.lastUsedMetric || 'None'} bottomSeparator="none" />
 			</DialogControlsSection>
 		</>

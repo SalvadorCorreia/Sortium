@@ -4,16 +4,15 @@ local millennium = require("millennium")
 
 local M = {}
 
--- Dynamically load all available streams from your registry
 M.AVAILABLE_STREAMS = require("streams.registry")
 
--- The multi-stream default settings blueprint
 M.DEFAULTS = {
 	enabledStreams = {
 		hltb = true,
 		sh = true,
 	},
 	lastUsedMetric = "hltb_main",
+	sortiumViewActive = false,
 	cacheDays = 7,
 	enableLogging = true,
 	enableLibraryButton = true,
@@ -27,7 +26,6 @@ end
 function M.merge_defaults(user_settings)
 	local result = {}
 
-	-- Ensure all top-level keys exist
 	for k, v in pairs(M.DEFAULTS) do
 		if user_settings[k] ~= nil then
 			result[k] = user_settings[k]
@@ -36,7 +34,6 @@ function M.merge_defaults(user_settings)
 		end
 	end
 
-	-- Ensure the enabledStreams nested table exists and has defaults
 	if type(result.enabledStreams) ~= "table" then
 		result.enabledStreams = {}
 	end
