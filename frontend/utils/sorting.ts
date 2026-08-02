@@ -29,9 +29,10 @@ export async function fetchAndSortApps(appIds: number[], metric: string) {
 export function formatTime(totalMinutes: number): string {
 	if (totalMinutes === Infinity || !totalMinutes) return 'No data';
 
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = Math.round(totalMinutes % 60);
+	if (totalMinutes < 120) {
+		return `${Math.round(totalMinutes)} minutes`;
+	}
 
-	if (hours === 0) return `${minutes}m`;
-	return `${hours}h ${minutes}m`;
+	const hours = (totalMinutes / 60).toFixed(1);
+	return `${hours} hours`;
 }
