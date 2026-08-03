@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
-import { getSettings, saveSettings } from '../services/settings';
+import { initSettings, getSettings, saveSettings } from '../services/settings';
 import { logger } from '../services/logger';
 
 interface SortiumToggleProps {
@@ -8,32 +8,49 @@ interface SortiumToggleProps {
 }
 
 export function SortiumToggle({ popup }: SortiumToggleProps) {
-	const [isActive, setIsActive] = useState(getSettings().sortiumViewActive);
+	const [isActive, setIsActive] = useState(false);
 
 	const activeColor = '#2d73ff';
 	const inactiveColor = '#39424d';
 	const textColorActive = '#ffffff';
 	const textColorInactive = '#b8b6b4';
 
-	const handleToggle = async () => {
-		const nextState = !isActive;
+	useEffect(() => {
+		let isMounted = true;
+		initSettings().then(() => {
+			if (isMounted) {
+				setIsActive(getSettings().sortiumViewActive);
+			}
+		});
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
-		if (!popup) {
-			logger.warn('Popup context missing. Cannot execute toggle.');
-			return;
-		}
+	useEffect(() => {
+		if (!popup) return;
 
 		const doc = popup.m_popup.document;
 		const gridModule = findModule((m) => m.GridWithControls);
 
-		if (gridModule && gridModule.GridWithControls) {
+		if (!gridModule || !gridModule.GridWithControls) {
+			logger.warn('GridWithControls module not found.');
+			return;
+		}
+
+		let attempts = 0;
+		const maxAttempts = 20;
+
+		const interval = setInterval(() => {
 			const grids = doc.querySelectorAll(`.${gridModule.GridWithControls}`);
 
-			const customGrid = grids[0] as HTMLElement;
-			const nativeGrid = grids[1] as HTMLElement;
+			if (grids.length >= 2) {
+				clearInterval(interval);
 
-			if (nativeGrid && customGrid) {
-				if (nextState) {
+				const customGrid = grids[0] as HTMLElement;
+				const nativeGrid = grids[1] as HTMLElement;
+
+				if (isActive) {
 					nativeGrid.style.height = '0px';
 					nativeGrid.style.overflow = 'hidden';
 					nativeGrid.style.visibility = 'hidden';
@@ -50,14 +67,26 @@ export function SortiumToggle({ popup }: SortiumToggleProps) {
 					customGrid.style.overflow = 'hidden';
 					customGrid.style.visibility = 'hidden';
 				}
-				const settings = getSettings();
-				await saveSettings({ ...settings, sortiumViewActive: nextState });
-				setIsActive(nextState);
-			} else {
-				logger.warn('Could not find one or both grids in the DOM. Toggle aborted.');
 			}
-		} else {
-			logger.warn('Could not locate the GridWithControls module. Steam UI may have changed.');
+
+			attempts++;
+			if (attempts >= maxAttempts) {
+				clearInterval(interval);
+			}
+		}, 100);
+
+		return () => clearInterval(interval);
+	}, [isActive, popup]);
+
+	const handleToggle = async () => {
+		const nextState = !isActive;
+		const currentSettings = getSettings();
+
+		const updatedSettings = { ...currentSettings, sortiumViewActive: nextState };
+		const success = await saveSettings(updatedSettings);
+
+		if (success) {
+			setIsActive(nextState);
 		}
 	};
 

@@ -43,15 +43,16 @@ export async function injectCollectionToggle(popup: any) {
 	}
 
 	const oldSortiumToggle = headerDiv.querySelector('div.sortium-toggle');
-	if (!oldSortiumToggle) {
-		const sortiumToggle = popup.m_popup.document.createElement('div');
-		sortiumToggle.className = 'sortium-toggle';
-
-		const sortiumRoot = createRoot(sortiumToggle);
-		sortiumRoot.render(<SortiumToggle popup={popup} />);
-
-		headerDiv.insertBefore(sortiumToggle, headerDiv.firstChild);
+	if (oldSortiumToggle) {
+		oldSortiumToggle.remove();
 	}
+	const sortiumToggle = popup.m_popup.document.createElement('div');
+	sortiumToggle.className = 'sortium-toggle';
+
+	const sortiumRoot = createRoot(sortiumToggle);
+	sortiumRoot.render(<SortiumToggle popup={popup} />);
+
+	headerDiv.insertBefore(sortiumToggle, headerDiv.firstChild);
 }
 
 export async function injectSortiumGrid(popup: any) {
