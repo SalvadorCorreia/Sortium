@@ -1,10 +1,12 @@
 import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
 import { useState, useEffect } from 'react';
+import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
 
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
 	const [streams, setStreams] = useState<DataStream[]>([]);
+	const [isConfirmingClear, setIsConfirmingClear] = useState(false);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -67,8 +69,14 @@ export default function SettingsMenu() {
 		}
 	};
 
-	const handleClearCache = async () => {
-		await clearCache();
+	const executeClearCache = async () => {
+		const success = await clearCache();
+		if (success) {
+			logger.info('Sortium Cache cleared successfully.');
+		} else {
+			logger.error('Failed to clear Sortium Cache.');
+		}
+		setIsConfirmingClear(false);
 	};
 
 	return (
@@ -118,26 +126,63 @@ export default function SettingsMenu() {
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Management</DialogControlsSectionHeader>
-				<Field
-					label="Clear Local Cache"
-					description="WARNING: This will significantly slow down the plugin as all data must be re-fetched from the APIs."
-					bottomSeparator="standard"
-				>
-					<button
-						onClick={handleClearCache}
-						style={{
-							padding: '6px 12px',
-							background: '#3d4450',
-							color: 'white',
-							border: 'none',
-							borderRadius: '4px',
-							cursor: 'pointer',
-							fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-							fontSize: '13px',
-						}}
-					>
-						Clear Cache
-					</button>
+				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
+					{!isConfirmingClear ? (
+						<button
+							onClick={() => setIsConfirmingClear(true)}
+							style={{
+								padding: '6px 12px',
+								background: '#3d4450',
+								color: 'white',
+								border: 'none',
+								borderRadius: '4px',
+								cursor: 'pointer',
+								fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+								fontSize: '13px',
+							}}
+						>
+							Clear Cache
+						</button>
+					) : (
+						<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+							<span style={{ color: '#ff5c5c', fontSize: '12px', fontWeight: 'bold' }}>
+								Are you sure? This will significantly slow down sorting until data is re-fetched.
+							</span>
+							<div style={{ display: 'flex', gap: '8px' }}>
+								<button
+									onClick={() => setIsConfirmingClear(false)}
+									style={{
+										padding: '6px 12px',
+										background: '#3d4450',
+										color: 'white',
+										border: 'none',
+										borderRadius: '4px',
+										cursor: 'pointer',
+										fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+										fontSize: '13px',
+									}}
+								>
+									Cancel
+								</button>
+								<button
+									onClick={executeClearCache}
+									style={{
+										padding: '6px 12px',
+										background: '#d94141',
+										color: 'white',
+										border: 'none',
+										borderRadius: '4px',
+										cursor: 'pointer',
+										fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+										fontSize: '13px',
+										fontWeight: 'bold',
+									}}
+								>
+									Confirm Delete
+								</button>
+							</div>
+						</div>
+					)}
 				</Field>
 			</DialogControlsSection>
 
