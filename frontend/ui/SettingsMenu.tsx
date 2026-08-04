@@ -1,7 +1,7 @@
 import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
 import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
-import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
+import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, triggerForceSync, type PluginSettings, type DataStream } from '../services/settings';
 
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
@@ -60,10 +60,19 @@ export default function SettingsMenu() {
 		await saveSettings(newSettings);
 	};
 
-	const updateCacheDays = async (e: React.ChangeEvent<HTMLInputElement>) => {
+	const updateSoftCacheDays = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const val = parseInt(e.target.value, 10);
 		if (!isNaN(val) && val > 0) {
-			const newSettings = { ...settings, cacheDays: val };
+			const newSettings = { ...settings, softCacheDays: val };
+			setSettingsState(newSettings);
+			await saveSettings(newSettings);
+		}
+	};
+
+	const updateHardCacheDays = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const val = parseInt(e.target.value, 10);
+		if (!isNaN(val) && val > 0) {
+			const newSettings = { ...settings, hardCacheDays: val };
 			setSettingsState(newSettings);
 			await saveSettings(newSettings);
 		}
@@ -77,6 +86,10 @@ export default function SettingsMenu() {
 			logger.error('Failed to clear Sortium Cache.');
 		}
 		setIsConfirmingClear(false);
+	};
+
+	const executeForceSync = () => {
+		triggerForceSync();
 	};
 
 	return (
@@ -126,12 +139,17 @@ export default function SettingsMenu() {
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Management</DialogControlsSectionHeader>
-				<Field label="Cache Expiration (Days)" description="How long to store fetched game data locally before pinging the APIs again." bottomSeparator="standard">
+
+				<Field
+					label="Soft Cache Expiration (Days)"
+					description="Data older than this will be fetched quietly in the background without blocking the UI."
+					bottomSeparator="standard"
+				>
 					<input
 						type="number"
 						min="1"
-						value={settings.cacheDays}
-						onChange={updateCacheDays}
+						value={settings.softCacheDays}
+						onChange={updateSoftCacheDays}
 						style={{
 							width: '60px',
 							padding: '6px 8px',
@@ -142,6 +160,46 @@ export default function SettingsMenu() {
 							outline: 'none',
 						}}
 					/>
+				</Field>
+
+				<Field
+					label="Hard Cache Expiration (Days)"
+					description="Data older than this will be treated as missing and force a UI loading state until fetched."
+					bottomSeparator="standard"
+				>
+					<input
+						type="number"
+						min="1"
+						value={settings.hardCacheDays}
+						onChange={updateHardCacheDays}
+						style={{
+							width: '60px',
+							padding: '6px 8px',
+							background: 'rgba(0, 0, 0, 0.25)',
+							color: 'white',
+							border: '1px solid rgba(255, 255, 255, 0.1)',
+							borderRadius: '4px',
+							outline: 'none',
+						}}
+					/>
+				</Field>
+
+				<Field label="Force Sync Library" description="Pushes all cached games into the background fetch queue immediately." bottomSeparator="standard">
+					<button
+						onClick={executeForceSync}
+						style={{
+							padding: '6px 12px',
+							background: '#3d4450',
+							color: 'white',
+							border: 'none',
+							borderRadius: '4px',
+							cursor: 'pointer',
+							fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+							fontSize: '13px',
+						}}
+					>
+						Force Sync
+					</button>
 				</Field>
 
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">

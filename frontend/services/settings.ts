@@ -20,7 +20,8 @@ export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	lastUsedMetric: string;
 	sortiumViewActive: boolean;
-	cacheDays: number;
+	softCacheDays: number;
+	hardCacheDays: number;
 	enableLogging: boolean;
 	enableLibraryButton: boolean;
 	enableCollectionButton: boolean;
@@ -43,7 +44,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	},
 	lastUsedMetric: 'hltb_main',
 	sortiumViewActive: false,
-	cacheDays: 7,
+	softCacheDays: 4,
+	hardCacheDays: 7,
 	enableLogging: true,
 	enableLibraryButton: true,
 	enableCollectionButton: true,
@@ -136,4 +138,9 @@ export async function clearCache(): Promise<boolean> {
 		logger.error('Failed to clear cache:', error);
 		return false;
 	}
+}
+
+export function triggerForceSync(): void {
+	logger.info('Force sync requested. (Queue worker integration pending)');
+	// Will be wired to the background queue worker
 }

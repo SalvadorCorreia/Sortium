@@ -51,9 +51,9 @@ export async function fetchMultipleHltbData(appIds: (string | number)[]): Promis
 	const stringAppIds = appIds.map(String);
 
 	const settings = getSettings();
-	const cacheDays = settings.cacheDays ?? 7;
+	const hardCacheDays = settings.hardCacheDays ?? 7;
 
-	const cacheExpirySeconds = cacheDays * 24 * 60 * 60;
+	const cacheExpirySeconds = hardCacheDays * 24 * 60 * 60;
 	const nowSeconds = Math.floor(Date.now() / 1000);
 
 	let cachedData: Record<string, CacheEntry> = {};
