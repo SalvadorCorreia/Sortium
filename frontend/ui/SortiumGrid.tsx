@@ -3,8 +3,8 @@ import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings } from '../services/settings';
-import { logger } from '../services/logger';
-import { fetchAndSortApps, formatTime } from '../utils/sorting';
+import { queueService } from '../services/queue';
+import { sortApps, formatTime, getMetricValue } from '../utils/sorting';
 
 declare global {
 	var uiStore: any;
@@ -26,8 +26,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const [appIds, setAppIds] = useState<number[]>([]);
 	const [activeMetric, setActiveMetric] = useState<string>(settings.lastUsedMetric || 'hltb_main');
 
-	const [sortedIds, setSortedIds] = useState<number[]>([]);
-	const [metricData, setMetricData] = useState<Record<number, string>>({});
+	const [, setRenderTrigger] = useState(0);
 
 	const customGridRef = useRef<HTMLDivElement>(null);
 
@@ -48,31 +47,13 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	useEffect(() => {
 		if (appIds.length === 0) return;
 
-		let isMounted = true;
+		const unsubscribe = queueService.subscribe(() => {
+			setRenderTrigger((prev) => prev + 1);
+		});
 
-		const loadData = async () => {
-			try {
-				const { sortedIds: newSortedIds, getSortValue } = await fetchAndSortApps(appIds, activeMetric);
+		queueService.enqueue(appIds, activeMetric);
 
-				if (!isMounted) return;
-
-				const formattedData: Record<number, string> = {};
-				newSortedIds.forEach((id) => {
-					formattedData[id] = formatTime(getSortValue(id));
-				});
-
-				setSortedIds(newSortedIds);
-				setMetricData(formattedData);
-			} catch (error) {
-				logger.error('Failed to fetch data for collection', error);
-			}
-		};
-
-		loadData();
-
-		return () => {
-			isMounted = false;
-		};
+		return () => unsubscribe();
 	}, [appIds, activeMetric]);
 
 	useLayoutEffect(() => {
@@ -81,7 +62,6 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 		const customGrid = customGridRef.current;
 
 		if (!nativeGrid || !customGrid) return;
-
 		customGrid.style.cssText = nativeGrid.style.cssText;
 
 		const observer = new MutationObserver(() => {
@@ -90,11 +70,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 			}
 		});
 
-		observer.observe(nativeGrid, {
-			attributes: true,
-			attributeFilter: ['style'],
-		});
-
+		observer.observe(nativeGrid, { attributes: true, attributeFilter: ['style'] });
 		return () => observer.disconnect();
 	}, [gridModule.CSSGrid, popup]);
 
@@ -110,7 +86,10 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 		containerStyle.visibility = 'hidden';
 	}
 
-	const displayIds = sortedIds.length > 0 ? sortedIds : appIds;
+	const streamId = activeMetric.split('_')[0] || 'hltb';
+	const dataResolver = (id: number) => queueService.getCachedData(streamId, id);
+
+	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver) : [];
 
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
@@ -133,11 +112,17 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 				<div ref={customGridRef} role="grid" className={`${gridModule.CSSGrid} ${yourCollectionModule.YourCollection} Panel sortium-custom-grid`}>
 					<div role="row" aria-rowindex={1} style={{ display: 'contents' }}>
-						{displayIds.map((id) => (
-							<div key={id} role="gridcell" style={{ display: 'contents' }}>
-								<SortiumCapsule appId={id} metricText={metricData[id] || 'Loading...'} />
-							</div>
-						))}
+						{displayIds.map((id) => {
+							const data = dataResolver(id);
+							const isMissing = data === null;
+							const metricValue = getMetricValue(activeMetric, data);
+
+							return (
+								<div key={id} role="gridcell" style={{ display: 'contents' }}>
+									<SortiumCapsule appId={id} metricText={formatTime(metricValue, isMissing)} />
+								</div>
+							);
+						})}
 						{children}
 					</div>
 				</div>

@@ -1,33 +1,31 @@
-import { fetchMultipleHltbData } from '../services/hltb';
-import { logger } from '../services/logger';
+export function getMetricValue(metric: string, data: any): number | null {
+	if (!data) return null;
 
-export async function fetchAndSortApps(appIds: number[], metric: string) {
-	logger.info(`Fetching data and sorting ${appIds.length} games by ${metric}...`);
-	const results = await fetchMultipleHltbData(appIds);
-
-	const getSortValue = (appId: string | number) => {
-		const data = results[appId];
-		if (!data) return Infinity;
-
-		switch (metric) {
-			case 'hltb_main':
-				return data.story || Infinity;
-			case 'hltb_extras':
-				return data.extras || Infinity;
-			case 'hltb_completionist':
-				return data.complete || Infinity;
-			default:
-				return Infinity;
-		}
-	};
-
-	const sortedIds = [...appIds].sort((a, b) => getSortValue(a) - getSortValue(b));
-
-	return { sortedIds, results, getSortValue };
+	switch (metric) {
+		case 'hltb_main':
+			return data.story || null;
+		case 'hltb_extras':
+			return data.extras || null;
+		case 'hltb_completionist':
+			return data.complete || null;
+		default:
+			return null;
+	}
 }
 
-export function formatTime(totalMinutes: number): string {
-	if (totalMinutes === Infinity || !totalMinutes) return 'No data';
+export function sortApps(appIds: number[], metric: string, dataResolver: (appId: number) => any): number[] {
+	const getSortValue = (appId: number) => {
+		const data = dataResolver(appId);
+		const value = getMetricValue(metric, data);
+		return value !== null ? value : Infinity; // Push missing/null data to the bottom
+	};
+
+	return [...appIds].sort((a, b) => getSortValue(a) - getSortValue(b));
+}
+
+export function formatTime(totalMinutes: number | null, isMissing: boolean): string {
+	if (isMissing) return 'Loading...';
+	if (totalMinutes === null || totalMinutes === Infinity) return 'No data';
 
 	if (totalMinutes < 120) {
 		return `${Math.round(totalMinutes)} minutes`;

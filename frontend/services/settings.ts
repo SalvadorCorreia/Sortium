@@ -139,8 +139,3 @@ export async function clearCache(): Promise<boolean> {
 		return false;
 	}
 }
-
-export function triggerForceSync(): void {
-	logger.info('Force sync requested. (Queue worker integration pending)');
-	// Will be wired to the background queue worker
-}

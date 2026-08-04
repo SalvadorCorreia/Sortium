@@ -1,7 +1,8 @@
 import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
 import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
-import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, triggerForceSync, type PluginSettings, type DataStream } from '../services/settings';
+import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
+import { queueService } from '../services/queue';
 
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
@@ -89,7 +90,8 @@ export default function SettingsMenu() {
 	};
 
 	const executeForceSync = () => {
-		triggerForceSync();
+		const currentMetric = settings?.lastUsedMetric || 'hltb_main';
+		queueService.forceSyncLibrary(currentMetric);
 	};
 
 	return (
