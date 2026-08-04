@@ -126,6 +126,24 @@ export default function SettingsMenu() {
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Management</DialogControlsSectionHeader>
+				<Field label="Cache Expiration (Days)" description="How long to store fetched game data locally before pinging the APIs again." bottomSeparator="standard">
+					<input
+						type="number"
+						min="1"
+						value={settings.cacheDays}
+						onChange={updateCacheDays}
+						style={{
+							width: '60px',
+							padding: '6px 8px',
+							background: 'rgba(0, 0, 0, 0.25)',
+							color: 'white',
+							border: '1px solid rgba(255, 255, 255, 0.1)',
+							borderRadius: '4px',
+							outline: 'none',
+						}}
+					/>
+				</Field>
+
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
 					{!isConfirmingClear ? (
 						<button
@@ -187,24 +205,7 @@ export default function SettingsMenu() {
 			</DialogControlsSection>
 
 			<DialogControlsSection>
-				<DialogControlsSectionHeader>Configuration</DialogControlsSectionHeader>
-				<Field label="Cache Expiration (Days)" description="How long to store fetched game data locally before pinging the APIs again." bottomSeparator="standard">
-					<input
-						type="number"
-						min="1"
-						value={settings.cacheDays}
-						onChange={updateCacheDays}
-						style={{
-							width: '60px',
-							padding: '6px 8px',
-							background: 'rgba(0, 0, 0, 0.25)',
-							color: 'white',
-							border: '1px solid rgba(255, 255, 255, 0.1)',
-							borderRadius: '4px',
-							outline: 'none',
-						}}
-					/>
-				</Field>
+				<DialogControlsSectionHeader>Advanced & Debugging</DialogControlsSectionHeader>
 				<ToggleField
 					label="Enable Developer Logging"
 					description="Print debug information to the Millennium developer console."
@@ -212,10 +213,6 @@ export default function SettingsMenu() {
 					onChange={toggleLogging}
 					bottomSeparator="standard"
 				/>
-			</DialogControlsSection>
-
-			<DialogControlsSection>
-				<DialogControlsSectionHeader>Debug Status</DialogControlsSectionHeader>
 				<Field label="Sortium View State" description={settings.sortiumViewActive ? 'Active' : 'Inactive'} bottomSeparator="standard" />
 				<Field label="Last Used Metric" description={settings.lastUsedMetric || 'None'} bottomSeparator="none" />
 			</DialogControlsSection>
