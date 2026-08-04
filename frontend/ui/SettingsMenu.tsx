@@ -1,6 +1,6 @@
 import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
 import { useState, useEffect } from 'react';
-import { initSettings, getSettings, getAvailableStreams, saveSettings, type PluginSettings, type DataStream } from '../services/settings';
+import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
 
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
@@ -67,6 +67,10 @@ export default function SettingsMenu() {
 		}
 	};
 
+	const handleClearCache = async () => {
+		await clearCache();
+	};
+
 	return (
 		<>
 			<DialogControlsSection>
@@ -110,6 +114,31 @@ export default function SettingsMenu() {
 						bottomSeparator="standard"
 					/>
 				))}
+			</DialogControlsSection>
+
+			<DialogControlsSection>
+				<DialogControlsSectionHeader>Data Management</DialogControlsSectionHeader>
+				<Field
+					label="Clear Local Cache"
+					description="WARNING: This will significantly slow down the plugin as all data must be re-fetched from the APIs."
+					bottomSeparator="standard"
+				>
+					<button
+						onClick={handleClearCache}
+						style={{
+							padding: '6px 12px',
+							background: '#3d4450',
+							color: 'white',
+							border: 'none',
+							borderRadius: '4px',
+							cursor: 'pointer',
+							fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+							fontSize: '13px',
+						}}
+					>
+						Clear Cache
+					</button>
+				</Field>
 			</DialogControlsSection>
 
 			<DialogControlsSection>

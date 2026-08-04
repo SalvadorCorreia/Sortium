@@ -25,7 +25,6 @@ function GetCacheBatch(args_json)
 		local app_id_str = tostring(app_id)
 		local app_id_num = tonumber(app_id)
 
-		-- Look for the string key first; fallback to the numeric key if it exists
 		local entry = stream_cache[app_id_str] or (app_id_num and stream_cache[app_id_num])
 
 		if entry then
@@ -40,7 +39,6 @@ function GetCacheBatch(args_json)
 end
 
 function AppendToCache(args_json)
-	-- args_json here matches the exact key passed by the frontend object
 	local ok, args = pcall(json.decode, args_json)
 	if not ok or not args.stream_id or not args.new_data then
 		return json.encode({ success = false, error = "Invalid arguments or malformed JSON string" })
@@ -52,6 +50,13 @@ function AppendToCache(args_json)
 	else
 		return json.encode({ success = false, error = "Failed to write updated stream cache to disk" })
 	end
+end
+
+function ClearCache()
+	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
+		cache.clear_stream(stream.id)
+	end
+	return json.encode({ success = true })
 end
 
 -- ------------------------------------------------------------------------------
@@ -73,7 +78,6 @@ function GetSettings()
 end
 
 function SaveSettings(settings_json)
-	-- The frontend passes the JSON string inside the settings_json property
 	local ok, new_settings = pcall(json.decode, settings_json)
 	if not ok then
 		logger:error("Failed to decode settings JSON from frontend")

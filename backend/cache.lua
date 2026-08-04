@@ -30,17 +30,14 @@ end
 function M.save_stream(stream_id, new_data)
 	local existing_cache = M.load_stream(stream_id)
 
-	-- Append or overwrite incoming entries cleanly
 	for app_id, entry_payload in pairs(new_data) do
 		local app_id_str = tostring(app_id)
 		local app_id_num = tonumber(app_id)
 
-		-- Clear out any existing numeric version of this key to prevent duplicates
 		if app_id_num then
 			existing_cache[app_id_num] = nil
 		end
 
-		-- Explicitly store it under the string key format
 		existing_cache[app_id_str] = entry_payload
 	end
 
@@ -53,6 +50,13 @@ function M.save_stream(stream_id, new_data)
 
 	file:write(json.encode(existing_cache))
 	file:close()
+	return true
+end
+
+function M.clear_stream(stream_id)
+	local path = get_cache_path(stream_id)
+	os.remove(path)
+	logger:info("Sortium: Cleared cache file for stream " .. stream_id)
 	return true
 end
 

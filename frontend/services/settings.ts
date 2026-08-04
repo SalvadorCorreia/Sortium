@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 const GetAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
 const GetSettingsRpc = callable<[], string>('GetSettings');
 const SaveSettingsRpc = callable<[{ settings_json: string }], string>('SaveSettings');
+const ClearCacheRpc = callable<[], string>('ClearCache');
 
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
 let cachedStreams: DataStream[] = [];
@@ -121,6 +122,18 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	} catch (error) {
 		logger.error('Exception during settings save operation:', error);
 		cachedSettings = previousSettings;
+		return false;
+	}
+}
+
+export async function clearCache(): Promise<boolean> {
+	try {
+		const responseJson = await ClearCacheRpc();
+		if (!responseJson) return false;
+		const res: BackendResponse<void> = JSON.parse(responseJson);
+		return res.success;
+	} catch (error) {
+		logger.error('Failed to clear cache:', error);
 		return false;
 	}
 }
