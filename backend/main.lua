@@ -3,6 +3,7 @@ local logger = require("logger")
 local millennium = require("millennium")
 local cache = require("cache")
 local settings = require("settings")
+local registry = require("streams.registry")
 
 -- ==============================================================================
 -- IPC Endpoints (Globally exposed for the React Frontend via `callable`)
@@ -60,13 +61,53 @@ function ClearCache()
 end
 
 -- ------------------------------------------------------------------------------
--- settings Endpoints
+-- Fetch Endpoints
+-- ------------------------------------------------------------------------------
+
+function FetchStreamData(args_json)
+	local ok, args = pcall(json.decode, args_json)
+	if not ok or not args.stream_id or not args.app_id then
+		return json.encode({ success = false, error = "Invalid arguments" })
+	end
+
+	local target_stream = nil
+	for _, stream in ipairs(registry) do
+		if stream.id == args.stream_id then
+			target_stream = stream
+			break
+		end
+	end
+
+	if not target_stream then
+		return json.encode({ success = false, error = "Stream not found" })
+	end
+
+	if type(target_stream.fetch) ~= "function" then
+		return json.encode({ success = false, error = "Stream does not support fetching" })
+	end
+
+	local result = target_stream.fetch(args.app_id)
+	return json.encode({ success = true, result = result })
+end
+
+-- ------------------------------------------------------------------------------
+-- Settings Endpoints
 -- ------------------------------------------------------------------------------
 
 function GetAvailableStreams()
+	local safe_streams = {}
+
+	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
+		table.insert(safe_streams, {
+			id = stream.id,
+			name = stream.name,
+			metrics = stream.metrics,
+		})
+	end
+
 	return json.encode({
 		success = true,
-		data = settings.AVAILABLE_STREAMS,
+		data = safe_streams,
 	})
 end
 

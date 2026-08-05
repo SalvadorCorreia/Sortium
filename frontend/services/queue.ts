@@ -1,10 +1,10 @@
 import { callable } from '@steambrew/client';
 import { getSettings } from './settings';
 import { logger } from './logger';
-import { fetchHltbData } from './hltb';
 
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
+const fetchStreamData = callable<[{ args_json: string }], string>('FetchStreamData');
 
 declare global {
 	var appStore: any;
@@ -126,12 +126,14 @@ class QueueService {
 
 			if (!streamId || !appId) continue;
 
-			if (streamId === 'hltb') {
-				const result = await fetchHltbData(appId);
+			try {
+				const payload = { stream_id: streamId, app_id: appId };
+				const raw = await fetchStreamData({ args_json: JSON.stringify(payload) });
+				const res = JSON.parse(raw);
 
-				if (!result.error) {
+				if (res.success && res.result && !res.result.error) {
 					const now = Math.floor(Date.now() / 1000);
-					const newEntry = { data: result.data, fetchedAt: now };
+					const newEntry = { data: res.result.data, fetchedAt: now };
 
 					if (!this.cache[streamId]) this.cache[streamId] = {};
 					this.cache[streamId]![appId] = newEntry;
@@ -143,15 +145,23 @@ class QueueService {
 						logger.error('QueueService: Failed to append to Lua cache', e);
 					}
 
-					logger.info(`QueueService: Fetched ${appId}. Remaining tasks: ${this.highPriority.size + this.lowPriority.size}`);
+					logger.info(`QueueService: Fetched ${appId} for ${streamId}. Remaining tasks: ${this.highPriority.size + this.lowPriority.size}`);
 					this.notify();
 				} else {
-					logger.warn(`QueueService: Paused due to fetch error on AppID ${appId}. Backing off.`);
+					const errorReason = res.error || (res.result && res.result.details) || 'Unknown backend error';
+					logger.warn(`QueueService: Paused due to fetch error on AppID ${appId} for ${streamId}. Reason: ${errorReason}. Backing off.`);
+
 					if (isHigh) this.highPriority.add(target);
 					else this.lowPriority.add(target);
 
 					await new Promise((r) => setTimeout(r, 5000));
 				}
+			} catch (error) {
+				logger.error(`QueueService: IPC or network failure fetching AppID ${appId} for ${streamId}.`, error);
+				if (isHigh) this.highPriority.add(target);
+				else this.lowPriority.add(target);
+
+				await new Promise((r) => setTimeout(r, 5000));
 			}
 
 			await new Promise((r) => setTimeout(r, 500));
