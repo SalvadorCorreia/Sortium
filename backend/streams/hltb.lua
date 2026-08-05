@@ -17,7 +17,6 @@ M.metrics = {
 function M.fetch(app_id)
 	local url = "https://api.augmentedsteam.com/app/" .. tostring(app_id) .. "/v2"
 
-	-- Pass the URL string directly as the first argument
 	local ok, response = pcall(http.request, url)
 
 	if not ok then
@@ -45,9 +44,33 @@ function M.fetch(app_id)
 		return { data = nil, error = true, details = err_msg }
 	end
 
-	logger:info("[HLTB Debug] " .. response.body)
+	local result_data = body.hltb
 
-	return { data = body.hltb or nil, error = false }
+	if result_data then
+		local total = 0
+		local count = 0
+
+		if type(result_data.story) == "number" and result_data.story > 0 then
+			total = total + result_data.story
+			count = count + 1
+		end
+		if type(result_data.extras) == "number" and result_data.extras > 0 then
+			total = total + result_data.extras
+			count = count + 1
+		end
+		if type(result_data.complete) == "number" and result_data.complete > 0 then
+			total = total + result_data.complete
+			count = count + 1
+		end
+
+		if count > 0 then
+			result_data.all_styles = math.floor(total / count)
+		else
+			result_data.all_styles = nil
+		end
+	end
+
+	return { data = result_data or nil, error = false }
 end
 
 return M

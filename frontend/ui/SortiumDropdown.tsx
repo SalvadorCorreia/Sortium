@@ -6,6 +6,7 @@ export const SORTIUM_OPTIONS = [
 	{ label: 'HLTB: Main Story', data: 'hltb_main' },
 	{ label: 'HLTB: Main + Extras', data: 'hltb_extras' },
 	{ label: 'HLTB: Completionist', data: 'hltb_completionist' },
+	{ label: 'HLTB: All Styles', data: 'hltb_all_styles' },
 	{ label: 'SteamHunters: Median', data: 'sh_median' },
 ];
 
