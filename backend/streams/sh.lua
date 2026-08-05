@@ -6,6 +6,7 @@ local M = {}
 
 M.id = "sh"
 M.name = "Steam Hunters"
+M.tag = "SH"
 
 M.metrics = {
 	{ id = "sh_median", name = "Median Time to 100%" },

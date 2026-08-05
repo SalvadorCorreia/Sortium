@@ -1,4 +1,4 @@
-import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
+import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader, Dropdown } from '@steambrew/client';
 import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
@@ -28,17 +28,32 @@ export default function SettingsMenu() {
 		return <Field label="Loading Sortium Configuration..." />;
 	}
 
-	const toggleSortiumViewActive = async (checked: boolean) => {
-		const newSettings = { ...settings, sortiumViewActive: checked };
-		setSettingsState(newSettings);
-		await saveSettings(newSettings);
-	};
-
-	const toggleStream = async (streamId: string, checked: boolean) => {
+	const toggleStreamMaster = async (streamId: string, checked: boolean) => {
 		const newSettings = {
 			...settings,
 			enabledStreams: { ...settings.enabledStreams, [streamId]: checked },
 		};
+		setSettingsState(newSettings);
+		await saveSettings(newSettings);
+	};
+
+	const toggleMetric = async (metricId: string, checked: boolean) => {
+		const newSettings = {
+			...settings,
+			enabledMetrics: { ...settings.enabledMetrics, [metricId]: checked },
+		};
+		setSettingsState(newSettings);
+		await saveSettings(newSettings);
+	};
+
+	const updateMenuStyle = async (value: string) => {
+		const newSettings = { ...settings, menuStyle: value as 'dropdown' | 'context' };
+		setSettingsState(newSettings);
+		await saveSettings(newSettings);
+	};
+
+	const toggleSortiumViewActive = async (checked: boolean) => {
+		const newSettings = { ...settings, sortiumViewActive: checked };
 		setSettingsState(newSettings);
 		await saveSettings(newSettings);
 	};
@@ -90,8 +105,10 @@ export default function SettingsMenu() {
 	};
 
 	const executeForceSync = () => {
-		const currentMetric = settings?.lastUsedMetric || 'hltb_main';
-		queueService.forceSyncLibrary(currentMetric);
+		const currentMetric = settings?.lastUsedMetric || streams[0]?.metrics[0]?.id || '';
+		if (currentMetric) {
+			queueService.forceSyncLibrary(currentMetric);
+		}
 	};
 
 	return (
@@ -100,6 +117,18 @@ export default function SettingsMenu() {
 				<DialogControlsSectionHeader>User Interface</DialogControlsSectionHeader>
 				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Choose where the Sortium sorting button should be injected within Steam.</div>
 
+				<Field label="Sorting Menu Style" description="How the sorting options are presented in the library." bottomSeparator="standard">
+					<div style={{ width: '220px' }}>
+						<Dropdown
+							rgOptions={[
+								{ label: 'Standard Dropdown', data: 'dropdown' },
+								{ label: 'Context Menu (Categories)', data: 'context' },
+							]}
+							selectedOption={settings.menuStyle}
+							onChange={(opt) => updateMenuStyle(opt.data)}
+						/>
+					</div>
+				</Field>
 				<ToggleField
 					label="Enable Sortium View by Default"
 					description="Automatically activate the custom Sortium grid when opening collections."
@@ -124,24 +153,40 @@ export default function SettingsMenu() {
 			</DialogControlsSection>
 
 			<DialogControlsSection>
-				<DialogControlsSectionHeader>Data Streams</DialogControlsSectionHeader>
-				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>
-					Select which data sources to use. Enabled streams and their sorting metrics will appear in your Library sorting dropdown.
-				</div>
+				<DialogControlsSectionHeader>Data Streams & Metrics</DialogControlsSectionHeader>
+				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Select which data sources and specific metrics to display in your sorting menu.</div>
 
-				{streams.map((stream) => (
-					<ToggleField
-						label={stream.name}
-						checked={!!settings.enabledStreams[stream.id]}
-						onChange={(checked) => toggleStream(stream.id, checked)}
-						bottomSeparator="standard"
-					/>
-				))}
+				{streams.map((stream) => {
+					const isStreamEnabled = settings.enabledStreams[stream.id] !== false;
+
+					return (
+						<div key={stream.id} style={{ marginBottom: '24px' }}>
+							<ToggleField
+								label={stream.name}
+								checked={isStreamEnabled}
+								onChange={(checked) => toggleStreamMaster(stream.id, checked)}
+								bottomSeparator={isStreamEnabled ? 'none' : 'standard'}
+							/>
+
+							{isStreamEnabled && (
+								<div style={{ marginLeft: '24px', marginTop: '8px', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '16px' }}>
+									{stream.metrics.map((metric) => (
+										<ToggleField
+											label={metric.name}
+											checked={settings.enabledMetrics[metric.id] !== false}
+											onChange={(checked) => toggleMetric(metric.id, checked)}
+											bottomSeparator="none"
+										/>
+									))}
+								</div>
+							)}
+						</div>
+					);
+				})}
 			</DialogControlsSection>
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Management</DialogControlsSectionHeader>
-
 				<Field
 					label="Soft Cache Expiration (Days)"
 					description="Data older than this will be fetched quietly in the background without blocking the UI."
@@ -163,7 +208,6 @@ export default function SettingsMenu() {
 						}}
 					/>
 				</Field>
-
 				<Field
 					label="Hard Cache Expiration (Days)"
 					description="Data older than this will be treated as missing and force a UI loading state until fetched."
@@ -185,7 +229,6 @@ export default function SettingsMenu() {
 						}}
 					/>
 				</Field>
-
 				<Field label="Force Sync Library" description="Pushes all cached games into the background fetch queue immediately." bottomSeparator="standard">
 					<button
 						onClick={executeForceSync}
@@ -203,7 +246,6 @@ export default function SettingsMenu() {
 						Force Sync
 					</button>
 				</Field>
-
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
 					{!isConfirmingClear ? (
 						<button

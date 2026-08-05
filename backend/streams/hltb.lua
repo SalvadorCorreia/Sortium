@@ -6,6 +6,7 @@ local M = {}
 
 M.id = "hltb"
 M.name = "HowLongToBeat"
+M.tag = "HLTB"
 
 M.metrics = {
 	{ id = "hltb_main", name = "Main Story" },
@@ -46,7 +47,7 @@ function M.fetch(app_id)
 
 	local result_data = body.hltb
 
-	if result_data then
+	if type(result_data) == "table" then
 		local total = 0
 		local count = 0
 

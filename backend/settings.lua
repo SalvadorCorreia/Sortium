@@ -7,11 +7,10 @@ local M = {}
 M.AVAILABLE_STREAMS = require("streams.registry")
 
 M.DEFAULTS = {
-	enabledStreams = {
-		hltb = true,
-		sh = true,
-	},
-	lastUsedMetric = "hltb_main",
+	enabledStreams = {},
+	enabledMetrics = {},
+	menuStyle = "dropdown",
+	lastUsedMetric = "",
 	sortiumViewActive = false,
 	softCacheDays = 4,
 	hardCacheDays = 7,
@@ -19,6 +18,16 @@ M.DEFAULTS = {
 	enableLibraryButton = true,
 	enableCollectionButton = true,
 }
+
+-- Populate metric defaults dynamically from registry
+for _, stream in ipairs(M.AVAILABLE_STREAMS) do
+	if M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
+		M.DEFAULTS.lastUsedMetric = stream.metrics[1].id
+	end
+	for _, metric in ipairs(stream.metrics) do
+		M.DEFAULTS.enabledMetrics[metric.id] = true
+	end
+end
 
 local function get_settings_path()
 	return millennium.get_install_path() .. "/settings.json"
@@ -35,13 +44,13 @@ function M.merge_defaults(user_settings)
 		end
 	end
 
-	if type(result.enabledStreams) ~= "table" then
-		result.enabledStreams = {}
+	if type(result.enabledMetrics) ~= "table" then
+		result.enabledMetrics = {}
 	end
 
-	for stream_id, is_enabled in pairs(M.DEFAULTS.enabledStreams) do
-		if result.enabledStreams[stream_id] == nil then
-			result.enabledStreams[stream_id] = is_enabled
+	for metric_id, is_enabled in pairs(M.DEFAULTS.enabledMetrics) do
+		if result.enabledMetrics[metric_id] == nil then
+			result.enabledMetrics[metric_id] = is_enabled
 		end
 	end
 

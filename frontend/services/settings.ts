@@ -1,10 +1,6 @@
 import { callable } from '@steambrew/client';
 import { logger, setLoggingEnabled } from './logger';
 
-// ==============================================================================
-// Type Definitions
-// ==============================================================================
-
 export interface Metric {
 	id: string;
 	name: string;
@@ -13,11 +9,14 @@ export interface Metric {
 export interface DataStream {
 	id: string;
 	name: string;
+	tag: string;
 	metrics: Metric[];
 }
 
 export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
+	enabledMetrics: Record<string, boolean>;
+	menuStyle: 'dropdown' | 'context';
 	lastUsedMetric: string;
 	sortiumViewActive: boolean;
 	softCacheDays: number;
@@ -33,16 +32,11 @@ interface BackendResponse<T> {
 	data?: T;
 }
 
-// ==============================================================================
-// Constants & State
-// ==============================================================================
-
 const DEFAULT_SETTINGS: PluginSettings = {
-	enabledStreams: {
-		hltb: true,
-		sh: true,
-	},
-	lastUsedMetric: 'hltb_main',
+	enabledStreams: {},
+	enabledMetrics: {},
+	menuStyle: 'dropdown',
+	lastUsedMetric: '',
 	sortiumViewActive: false,
 	softCacheDays: 4,
 	hardCacheDays: 7,
@@ -58,10 +52,6 @@ const ClearCacheRpc = callable<[], string>('ClearCache');
 
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
 let cachedStreams: DataStream[] = [];
-
-// ==============================================================================
-// Service Methods
-// ==============================================================================
 
 export async function initSettings(): Promise<void> {
 	try {

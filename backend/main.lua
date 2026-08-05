@@ -101,6 +101,7 @@ function GetAvailableStreams()
 		table.insert(safe_streams, {
 			id = stream.id,
 			name = stream.name,
+			tag = stream.tag,
 			metrics = stream.metrics,
 		})
 	end
