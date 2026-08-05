@@ -1,3 +1,18 @@
+# Steam Webpack DevTools Helper Functions
+
+This document contains a collection of JavaScript helper functions intended to be executed in the browser console. They assist in searching and analyzing Webpack modules within the Steam UI environment.
+
+---
+
+### FindSteamHash
+
+Searches Webpack modules for specific exported hash values.
+
+*   **Input:** One or more strings (or arrays of strings) representing target hashes.
+*   **Output:** An object mapping each target hash to an array of matching module data.
+*   **Notes:** Automatically formats and prints a copy-paste summary in the developer console.
+
+```javascript
 window.FindSteamHash = function(...targetHashes) {
     const hashesToFind = targetHashes
         .flat()
@@ -50,7 +65,19 @@ window.FindSteamHash = function(...targetHashes) {
     
     return foundMatches;
 }
+```
 
+---
+
+### FindAllSteamHashes
+
+Searches Webpack modules for all occurrences of specific exported hash values, providing detailed indexed matching.
+
+*   **Input:** One or more strings (or arrays of strings) representing target hashes.
+*   **Output:** An object mapping each target hash to an array of matching module data.
+*   **Notes:** Provides a detailed indexed console log for each match, useful when a single hash appears multiple times.
+
+```javascript
 window.FindAllSteamHashes = function(...targetHashes) {
     const hashesToFind = targetHashes
         .flat()
@@ -84,7 +111,7 @@ window.FindAllSteamHashes = function(...targetHashes) {
         if (matches.length > 0) {
             console.log(`%c[Scanner] Found ${matches.length} match(es) for hash '${hash}':`, 'color: #00ffff; font-weight: bold;');
             matches.forEach((match, index) => {
-                console.log(`%c-> Match ${index + 1}: ${match.readableName}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
+                console.log(`%c-> Match ${index + 1}:${match.readableName}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
             });
             
             const names = matches.map(m => m.readableName).join(', ');
@@ -100,7 +127,19 @@ window.FindAllSteamHashes = function(...targetHashes) {
     
     return foundMatches;
 }
+```
 
+---
+
+### FindSteamClass
+
+Searches Webpack modules for specific class or property names.
+
+*   **Input:** One or more strings (or arrays of strings) representing target property names.
+*   **Output:** An object mapping target properties to an array of matching module data and their corresponding hashes.
+*   **Notes:** Useful for finding UI elements that are currently loaded in memory.
+
+```javascript
 window.FindSteamClass = function(...targetProperties) {
     const propsToFind = targetProperties
         .flat()
@@ -133,7 +172,7 @@ window.FindSteamClass = function(...targetProperties) {
         if (matches.length > 0) {
             console.log(`%c[Scanner] Found ${matches.length} module(s) containing '${prop}':`, 'color: #00ff00; font-weight: bold;');
             matches.forEach((match, index) => {
-                console.log(`%c-> Match ${index + 1}: Hash = ${match.hash}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
+                console.log(`%c-> Match ${index + 1}: Hash =${match.hash}`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module);
             });
 
             const hashes = matches.map(m => m.hash).join(', ');
@@ -149,7 +188,19 @@ window.FindSteamClass = function(...targetProperties) {
 
     return foundMatches;
 }
+```
 
+---
+
+### OptimizeModuleQueries
+
+Analyzes modules containing target hashes and generates the optimal query strings for framework hooks.
+
+*   **Input:** One or more strings (or arrays of strings) representing target hashes.
+*   **Output:** Prints optimal `findModule` query strings to the console (returns `undefined`).
+*   **Notes:** Calculates unique keys or key pairs to reliably hook into specific Webpack modules without relying on hardcoded hashes.
+
+```javascript
 window.OptimizeModuleQueries = function(...targetHashes) {
     const hashesToFind = targetHashes
         .flat()
@@ -239,7 +290,19 @@ window.OptimizeModuleQueries = function(...targetHashes) {
         moduleIndex++;
     });
 };
+```
 
+---
+
+### FindSteamMethods
+
+Searches Webpack module exports and prototype chains for specific method names.
+
+*   **Input:** One or more strings (or arrays of strings) representing target keywords.
+*   **Output:** An object mapping target keywords to an array of matching function references and module data.
+*   **Notes:** Search is case-insensitive and scans top-level exports as well as one level deep into object prototypes.
+
+```javascript
 window.FindSteamMethods = function(...targetKeywords) {
     const keywordsToFind = targetKeywords
         .flat()
@@ -310,7 +373,7 @@ window.FindSteamMethods = function(...targetKeywords) {
         if (matches.length > 0) {
             console.log(`%c[Scanner] Found ${matches.length} method(s) matching '${kw}':`, 'color: #00ff00; font-weight: bold;');
             matches.forEach((match, index) => {
-                console.log(`%c-> Match ${index + 1}: ${match.propName}()`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module, '\nFunction Reference:', match.func);
+                console.log(`%c-> Match ${index + 1}:${match.propName}()`, 'color: #ffff00; font-weight: bold;', '\nFull Module:', match.module, '\nFunction Reference:', match.func);
             });
 
             const names = matches.map(m => m.propName).join(', ');
@@ -326,3 +389,4 @@ window.FindSteamMethods = function(...targetKeywords) {
 
     return foundMatches;
 };
+```
