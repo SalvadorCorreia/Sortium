@@ -9,11 +9,11 @@ M.name = "Steam Hunters"
 M.tag = "SH"
 
 M.metrics = {
-	{ id = "sh_median", name = "Median Time to 100%" },
-	{ id = "sh_fastest", name = "Fastest Time to 100%" },
-	{ id = "sh_points", name = "Hunter Points" },
-	{ id = "sh_rating", name = "SteamDB Rating" },
-	{ id = "sh_achievements", name = "Total Achievements" },
+	{ id = "sh_median", name = "Median Time", type = "time", defaultDir = "asc" },
+	{ id = "sh_fastest", name = "Fastest Time", type = "time", defaultDir = "asc" },
+	{ id = "sh_points", name = "Hunter Points", type = "score", defaultDir = "desc" },
+	{ id = "sh_rating", name = "SteamDB Rating", type = "rating", defaultDir = "desc" },
+	{ id = "sh_achievements", name = "Achievements", type = "count", defaultDir = "desc" },
 }
 
 function M.fetch(app_id)

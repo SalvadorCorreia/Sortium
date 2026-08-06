@@ -1,10 +1,11 @@
 import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
+import { SortiumDirectionToggle } from './SortiumDirectionToggle';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings } from '../services/settings';
 import { queueService } from '../services/queue';
-import { sortApps, formatTime, getMetricValue } from '../utils/sorting';
+import { sortApps, formatMetricValue, getMetricValue } from '../utils/sorting';
 
 declare global {
 	var uiStore: any;
@@ -25,6 +26,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const [isActive] = useState(settings.sortiumViewActive);
 	const [appIds, setAppIds] = useState<number[]>([]);
 	const [activeMetric, setActiveMetric] = useState<string>(settings.lastUsedMetric || 'hltb_main');
+	const [activeDirection, setActiveDirection] = useState<'asc' | 'desc'>(settings.sortDirection || 'asc');
 
 	const [, setRenderTrigger] = useState(0);
 
@@ -89,12 +91,21 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 	const dataResolver = (id: number) => queueService.getCachedData(streamId, id);
 
-	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver) : [];
+	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver, activeDirection) : [];
 
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
-				<SortiumDropdown variant="collection" onSortChange={(metric) => setActiveMetric(metric)} />
+				<SortiumDropdown
+					variant="collection"
+					onSortChange={(metric, direction) => {
+						setActiveMetric(metric);
+						setActiveDirection(direction);
+					}}
+				/>
+
+				<SortiumDirectionToggle direction={activeDirection} onDirectionChange={setActiveDirection} />
+
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>
 			</div>
 
@@ -119,7 +130,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 							return (
 								<div key={id} role="gridcell" style={{ display: 'contents' }}>
-									<SortiumCapsule appId={id} metricText={formatTime(metricValue, isMissing)} />
+									<SortiumCapsule appId={id} metricText={formatMetricValue(metricValue, activeMetric, isMissing)} />
 								</div>
 							);
 						})}

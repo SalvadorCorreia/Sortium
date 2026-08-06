@@ -4,6 +4,8 @@ import { logger, setLoggingEnabled } from './logger';
 export interface Metric {
 	id: string;
 	name: string;
+	type: 'time' | 'rating' | 'score' | 'count';
+	defaultDir: 'asc' | 'desc';
 }
 
 export interface DataStream {
@@ -16,6 +18,7 @@ export interface DataStream {
 export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	enabledMetrics: Record<string, boolean>;
+	sortDirection: 'asc' | 'desc';
 	menuStyle: 'dropdown' | 'context';
 	lastUsedMetric: string;
 	sortiumViewActive: boolean;
@@ -35,6 +38,7 @@ interface BackendResponse<T> {
 const DEFAULT_SETTINGS: PluginSettings = {
 	enabledStreams: {},
 	enabledMetrics: {},
+	sortDirection: 'asc',
 	menuStyle: 'dropdown',
 	lastUsedMetric: '',
 	sortiumViewActive: false,

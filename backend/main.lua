@@ -98,11 +98,21 @@ function GetAvailableStreams()
 	local safe_streams = {}
 
 	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
+		local safe_metrics = {}
+		for _, metric in ipairs(stream.metrics) do
+			table.insert(safe_metrics, {
+				id = metric.id,
+				name = metric.name,
+				type = metric.type or "time",
+				defaultDir = metric.defaultDir or "desc",
+			})
+		end
+
 		table.insert(safe_streams, {
 			id = stream.id,
 			name = stream.name,
-			tag = stream.tag,
-			metrics = stream.metrics,
+			tag = stream.tag or stream.name,
+			metrics = safe_metrics,
 		})
 	end
 
