@@ -105,10 +105,13 @@ export default function SettingsMenu() {
 	};
 
 	const executeForceSync = () => {
-		const currentMetric = settings?.lastUsedMetric || streams[0]?.metrics[0]?.id || '';
-		if (currentMetric) {
-			queueService.forceSyncLibrary(currentMetric);
-		}
+		if (!settings || streams.length === 0) return;
+
+		streams.forEach((stream) => {
+			if (settings.enabledStreams[stream.id] !== false) {
+				queueService.forceSyncLibrary(`${stream.id}_sync`);
+			}
+		});
 	};
 
 	return (
