@@ -118,7 +118,7 @@ export default function SettingsMenu() {
 				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Choose where the Sortium sorting button should be injected within Steam.</div>
 
 				<Field label="Sorting Menu Style" description="How the sorting options are presented in the library." bottomSeparator="standard">
-					<div style={{ width: '220px' }}>
+					<div style={{ width: '100%', maxWidth: '250px', minWidth: 0 }}>
 						<Dropdown
 							rgOptions={[
 								{ label: 'Standard Dropdown', data: 'dropdown' },
@@ -198,7 +198,8 @@ export default function SettingsMenu() {
 						value={settings.softCacheDays}
 						onChange={updateSoftCacheDays}
 						style={{
-							width: '60px',
+							width: '100%',
+							maxWidth: '60px',
 							padding: '6px 8px',
 							background: 'rgba(0, 0, 0, 0.25)',
 							color: 'white',
@@ -219,7 +220,8 @@ export default function SettingsMenu() {
 						value={settings.hardCacheDays}
 						onChange={updateHardCacheDays}
 						style={{
-							width: '60px',
+							width: '100%',
+							maxWidth: '60px',
 							padding: '6px 8px',
 							background: 'rgba(0, 0, 0, 0.25)',
 							color: 'white',
