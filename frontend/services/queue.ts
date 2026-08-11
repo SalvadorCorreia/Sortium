@@ -15,11 +15,19 @@ export interface CacheEntry {
 	fetchedAt: number;
 }
 
+type StreamState = 'HEALTHY' | 'RATE_LIMITED';
+
 class QueueService {
 	private cache: Record<string, Record<string, CacheEntry>> = {};
-	private highPriority: Set<string> = new Set();
-	private lowPriority: Set<string> = new Set();
+
+	private highPriority: string[] = [];
+	private lowPriority: string[] = [];
+
+	private streamStates: Record<string, StreamState> = {};
+	private suspendedPool: Record<string, number[]> = {};
+
 	private processing = false;
+	private recovering = false;
 	private listeners: Set<() => void> = new Set();
 
 	public subscribe(fn: () => void): () => void {
@@ -77,15 +85,16 @@ class QueueService {
 		for (const id of stringIds) {
 			const entry = this.cache[streamId]?.[id];
 			const age = entry ? now - entry.fetchedAt : Infinity;
+			const target = `${streamId}:${id}`;
 
 			if (!entry || age > hardLimit) {
-				if (!this.highPriority.has(`${streamId}:${id}`)) {
-					this.highPriority.add(`${streamId}:${id}`);
-					addedHigh++;
-				}
+				// Ensure target moves to the top of the LIFO stack
+				this.highPriority = this.highPriority.filter((item) => item !== target);
+				this.highPriority.push(target);
+				addedHigh++;
 			} else if (age > softLimit) {
-				if (!this.lowPriority.has(`${streamId}:${id}`)) {
-					this.lowPriority.add(`${streamId}:${id}`);
+				if (!this.lowPriority.includes(target)) {
+					this.lowPriority.push(target);
 					addedLow++;
 				}
 			}
@@ -105,17 +114,15 @@ class QueueService {
 
 		logger.info('QueueService: Starting background queue processing.');
 
-		while (this.highPriority.size > 0 || this.lowPriority.size > 0) {
+		while (this.highPriority.length > 0 || this.lowPriority.length > 0) {
 			let target: string | undefined;
 			let isHigh = false;
 
-			if (this.highPriority.size > 0) {
-				target = this.highPriority.values().next().value;
-				if (target) this.highPriority.delete(target);
+			if (this.highPriority.length > 0) {
+				target = this.highPriority.pop(); // LIFO
 				isHigh = true;
 			} else {
-				target = this.lowPriority.values().next().value;
-				if (target) this.lowPriority.delete(target);
+				target = this.lowPriority.shift(); // FIFO
 			}
 
 			if (!target) continue;
@@ -125,6 +132,14 @@ class QueueService {
 			const appId = parts[1];
 
 			if (!streamId || !appId) continue;
+
+			if (this.streamStates[streamId] === 'RATE_LIMITED') {
+				if (!this.suspendedPool[streamId]) this.suspendedPool[streamId] = [];
+				if (!this.suspendedPool[streamId].includes(Number(appId))) {
+					this.suspendedPool[streamId].push(Number(appId));
+				}
+				continue;
+			}
 
 			try {
 				const payload = { stream_id: streamId, app_id: appId };
@@ -145,23 +160,40 @@ class QueueService {
 						logger.error('QueueService: Failed to append to Lua cache', e);
 					}
 
-					logger.info(`QueueService: Fetched ${appId} for ${streamId}. Remaining tasks: ${this.highPriority.size + this.lowPriority.size}`);
+					logger.info(`QueueService: Fetched ${appId} for ${streamId}. Remaining tasks: ${this.highPriority.length + this.lowPriority.length}`);
 					this.notify();
 				} else {
-					const errorReason = res.error || (res.result && res.result.details) || 'Unknown backend error';
-					logger.warn(`QueueService: Paused due to fetch error on AppID ${appId} for ${streamId}. Reason: ${errorReason}. Backing off.`);
+					const errorReason = String(res.error || (res.result && res.result.details) || 'Unknown backend error');
+					const isRateLimit =
+						errorReason.includes('429') ||
+						errorReason.includes('500') ||
+						errorReason.toLowerCase().includes('timeout') ||
+						errorReason.toLowerCase().includes('internal server error');
 
-					if (isHigh) this.highPriority.add(target);
-					else this.lowPriority.add(target);
+					logger.warn(`QueueService: Fetch error on AppID ${appId} for ${streamId}. Reason: ${errorReason}.`);
 
-					await new Promise((r) => setTimeout(r, 5000));
+					if (isRateLimit) {
+						this.handleRateLimit(streamId, Number(appId));
+					} else {
+						if (isHigh) this.highPriority.push(target);
+						else this.lowPriority.push(target);
+						await new Promise((r) => setTimeout(r, 1000000));
+					}
 				}
 			} catch (error) {
 				logger.error(`QueueService: IPC or network failure fetching AppID ${appId} for ${streamId}.`, error);
-				if (isHigh) this.highPriority.add(target);
-				else this.lowPriority.add(target);
 
-				await new Promise((r) => setTimeout(r, 5000));
+				const errorString = String(error).toLowerCase();
+				const isRateLimit =
+					errorString.includes('429') || errorString.includes('500') || errorString.includes('timeout') || errorString.includes('internal server error');
+
+				if (isRateLimit) {
+					this.handleRateLimit(streamId, Number(appId));
+				} else {
+					if (isHigh) this.highPriority.push(target);
+					else this.lowPriority.push(target);
+					await new Promise((r) => setTimeout(r, 1000000));
+				}
 			}
 
 			await new Promise((r) => setTimeout(r, 500));
@@ -169,6 +201,79 @@ class QueueService {
 
 		logger.info('QueueService: Processing complete. Queue is empty.');
 		this.processing = false;
+	}
+
+	private handleRateLimit(streamId: string, appId: number) {
+		this.streamStates[streamId] = 'RATE_LIMITED';
+		if (!this.suspendedPool[streamId]) this.suspendedPool[streamId] = [];
+		this.suspendedPool[streamId].push(appId);
+		this.startRecoveryLoop();
+	}
+
+	private async startRecoveryLoop() {
+		if (this.recovering) return;
+		this.recovering = true;
+
+		logger.info('QueueService: Starting background recovery subsystem.');
+
+		while (Object.values(this.streamStates).includes('RATE_LIMITED')) {
+			await new Promise((r) => setTimeout(r, 60000));
+
+			for (const [streamId, state] of Object.entries(this.streamStates)) {
+				if (state === 'RATE_LIMITED') {
+					const pool = this.suspendedPool[streamId] || [];
+					if (pool.length === 0) {
+						this.streamStates[streamId] = 'HEALTHY';
+						continue;
+					}
+
+					const testAppId = pool[0];
+					if (testAppId === undefined) continue;
+
+					logger.info(`QueueService: Testing recovery for stream ${streamId} with AppID ${testAppId}.`);
+
+					try {
+						const payload = { stream_id: streamId, app_id: testAppId.toString() };
+						const raw = await fetchStreamData({ args_json: JSON.stringify(payload) });
+						const res = JSON.parse(raw);
+
+						if (res.success && res.result && !res.result.error) {
+							logger.info(`QueueService: Stream ${streamId} recovered. Restoring suspended items.`);
+							this.streamStates[streamId] = 'HEALTHY';
+
+							const now = Math.floor(Date.now() / 1000);
+							const newEntry = { data: res.result.data, fetchedAt: now };
+
+							if (!this.cache[streamId]) this.cache[streamId] = {};
+							this.cache[streamId][testAppId.toString()] = newEntry;
+
+							try {
+								const savePayload = { stream_id: streamId, new_data: { [testAppId]: newEntry } };
+								await appendToCache({ args_json: JSON.stringify(savePayload) });
+							} catch (e) {
+								logger.error('QueueService: Failed to append recovery data to Lua cache', e);
+							}
+
+							pool.shift();
+							for (const id of pool) {
+								this.highPriority.push(`${streamId}:${id}`);
+							}
+
+							this.suspendedPool[streamId] = [];
+							this.notify();
+							this.startProcessing();
+						} else {
+							logger.warn(`QueueService: Stream ${streamId} is still rate limited.`);
+						}
+					} catch (error) {
+						logger.warn(`QueueService: Stream ${streamId} test failed during recovery.`);
+					}
+				}
+			}
+		}
+
+		logger.info('QueueService: Recovery complete. All streams healthy.');
+		this.recovering = false;
 	}
 
 	public forceSyncLibrary(metric: string) {
