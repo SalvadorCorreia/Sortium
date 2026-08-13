@@ -1,5 +1,6 @@
 import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
+import { openSortiumContextMenu } from './SortiumContextMenu';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
 import { SortiumCapsule } from './SortiumCapsule';
@@ -22,6 +23,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const collectionModule = findModule((m) => m.GridWithControls && m.CollectionOptions) || {};
 	const yourCollectionModule = findModule((m) => m.YourCollection) || {};
 	const gridModule = findModule((m) => m.CSSGrid) || {};
+	const sortModule = findModule((m) => m.SortingDropDown && m.SortingDropDownLabel) || {};
 
 	const settings = getSettings();
 	const [isActive] = useState(settings.sortiumViewActive);
@@ -40,7 +42,6 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 			if (currentCollectionId) {
 				const currentColl = collectionStore.GetCollection(currentCollectionId);
 
-				// Use visibleApps and filter out Tools (app_type === 4)
 				if (currentColl && currentColl.visibleApps) {
 					const filteredApps = currentColl.visibleApps.filter((app: any) => {
 						const overview = appStore.GetAppOverviewByAppID(app.appid);
@@ -104,13 +105,30 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
-				<SortiumDropdown
-					variant="collection"
-					onSortChange={(metric, direction) => {
-						setActiveMetric(metric);
-						setActiveDirection(direction);
-					}}
-				/>
+				{settings.menuStyle === 'dropdown' ? (
+					<SortiumDropdown
+						variant="collection"
+						onSortChange={(metric, direction) => {
+							setActiveMetric(metric);
+							setActiveDirection(direction);
+						}}
+					/>
+				) : (
+					<div
+						className={sortModule.SortingDropDown}
+						tabIndex={-1}
+						onClick={(e) => {
+							openSortiumContextMenu(e, (metric, direction) => {
+								setActiveMetric(metric);
+								setActiveDirection(direction);
+							});
+						}}
+						style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+					>
+						<div className={sortModule.SortingDropDownLabel}>Sort By</div>
+						<div style={{ color: '#b8b6b4', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Sortium ▼</div>
+					</div>
+				)}
 
 				<SortiumDirectionToggle direction={activeDirection} onDirectionChange={setActiveDirection} />
 

@@ -1,4 +1,5 @@
 import { findModule, Navigation } from '@steambrew/client';
+import { openSortiumContextMenu } from './SortiumContextMenu';
 
 declare global {
 	var appStore: any;
@@ -35,11 +36,17 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 		Navigation.Navigate(`/library/app/${appId}`);
 	};
 
+	const handleContextMenu = (e: React.MouseEvent) => {
+		e.preventDefault();
+		openSortiumContextMenu(e);
+	};
+
 	return (
 		<div
 			className={`${layoutModule.Draggable} ${layoutModule.HoversEnabled} ${dragModule.Draggable}`}
 			draggable="false"
 			onClick={handleClick}
+			onContextMenu={handleContextMenu}
 			style={{ cursor: 'pointer' }}
 		>
 			<div role="link" className={`${layoutModule.LibraryItemBox} ${layoutModule.Portrait} ${layoutModule.InCollection} Panel`} tabIndex={0}>
