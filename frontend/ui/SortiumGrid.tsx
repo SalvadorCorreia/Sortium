@@ -10,6 +10,7 @@ import { sortApps, formatMetricValue, getMetricValue } from '../utils/sorting';
 declare global {
 	var uiStore: any;
 	var collectionStore: any;
+	var appStore: any;
 }
 
 interface SortiumGridProps {
@@ -33,13 +34,20 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const customGridRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		if (typeof uiStore !== 'undefined' && typeof collectionStore !== 'undefined') {
+		if (typeof uiStore !== 'undefined' && typeof collectionStore !== 'undefined' && typeof appStore !== 'undefined') {
 			const currentCollectionId = uiStore.currentGameListSelection?.strCollectionId;
 
 			if (currentCollectionId) {
 				const currentColl = collectionStore.GetCollection(currentCollectionId);
-				if (currentColl && currentColl.allApps) {
-					const ids = currentColl.allApps.map((app: any) => app.appid);
+
+				// Use visibleApps and filter out Tools (app_type === 4)
+				if (currentColl && currentColl.visibleApps) {
+					const filteredApps = currentColl.visibleApps.filter((app: any) => {
+						const overview = appStore.GetAppOverviewByAppID(app.appid);
+						return overview && overview.app_type !== 4;
+					});
+
+					const ids = filteredApps.map((app: any) => app.appid);
 					setAppIds(ids);
 				}
 			}
