@@ -1,5 +1,5 @@
 import { findModule, Navigation } from '@steambrew/client';
-import { openSortiumContextMenu } from './SortiumContextMenu';
+import { triggerCapsuleMenu } from './SortiumContextMenu';
 
 declare global {
 	var appStore: any;
@@ -38,7 +38,8 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 
 	const handleContextMenu = (e: React.MouseEvent) => {
 		e.preventDefault();
-		openSortiumContextMenu(e);
+		e.stopPropagation();
+		triggerCapsuleMenu(e, appId);
 	};
 
 	return (

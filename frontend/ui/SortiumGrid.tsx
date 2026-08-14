@@ -1,12 +1,12 @@
 import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
-import { openSortiumContextMenu } from './SortiumContextMenu';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { sortApps, formatMetricValue, getMetricValue } from '../utils/sorting';
+import { triggerGridMenu } from './SortiumContextMenu';
 
 declare global {
 	var uiStore: any;
@@ -118,7 +118,9 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 						className={sortModule.SortingDropDown}
 						tabIndex={-1}
 						onClick={(e) => {
-							openSortiumContextMenu(e, (metric, direction) => {
+							e.preventDefault();
+							e.stopPropagation();
+							triggerGridMenu(e, (metric, direction) => {
 								setActiveMetric(metric);
 								setActiveDirection(direction);
 							});
