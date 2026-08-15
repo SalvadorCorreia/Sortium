@@ -3,10 +3,10 @@ import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
 import { SortiumCapsule } from './SortiumCapsule';
-import { getSettings } from '../services/settings';
+import { getSettings, saveSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { sortApps, formatMetricValue, getMetricValue } from '../utils/sorting';
-import { triggerGridMenu } from './SortiumContextMenu';
+import { SortiumContextMenuButton } from './SortiumContextMenu';
 
 declare global {
 	var uiStore: any;
@@ -23,17 +23,26 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const collectionModule = findModule((m) => m.GridWithControls && m.CollectionOptions) || {};
 	const yourCollectionModule = findModule((m) => m.YourCollection) || {};
 	const gridModule = findModule((m) => m.CSSGrid) || {};
-	const sortModule = findModule((m) => m.SortingDropDown && m.SortingDropDownLabel) || {};
 
 	const settings = getSettings();
+
 	const [isActive] = useState(settings.sortiumViewActive);
 	const [appIds, setAppIds] = useState<number[]>([]);
 	const [activeMetric, setActiveMetric] = useState<string>(settings.lastUsedMetric || 'hltb_main');
 	const [activeDirection, setActiveDirection] = useState<'asc' | 'desc'>(settings.sortDirection || 'asc');
 
 	const [, setRenderTrigger] = useState(0);
-
 	const customGridRef = useRef<HTMLDivElement>(null);
+
+	const handleSortChange = (metric: string, direction: 'asc' | 'desc') => {
+		setActiveMetric(metric);
+		setActiveDirection(direction);
+		saveSettings({
+			...settings,
+			lastUsedMetric: metric,
+			sortDirection: direction,
+		});
+	};
 
 	useEffect(() => {
 		if (typeof uiStore !== 'undefined' && typeof collectionStore !== 'undefined' && typeof appStore !== 'undefined') {
@@ -99,37 +108,15 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 	const dataResolver = (id: number) => queueService.getCachedData(streamId, id);
-
 	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver, activeDirection) : [];
 
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
 			<div className={`${collectionModule.CollectionOptions} Panel`}>
 				{settings.menuStyle === 'dropdown' ? (
-					<SortiumDropdown
-						variant="collection"
-						onSortChange={(metric, direction) => {
-							setActiveMetric(metric);
-							setActiveDirection(direction);
-						}}
-					/>
+					<SortiumDropdown variant="collection" onSortChange={handleSortChange} />
 				) : (
-					<div
-						className={sortModule.SortingDropDown}
-						tabIndex={-1}
-						onClick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							triggerGridMenu(e, (metric, direction) => {
-								setActiveMetric(metric);
-								setActiveDirection(direction);
-							});
-						}}
-						style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-					>
-						<div className={sortModule.SortingDropDownLabel}>Sort By</div>
-						<div style={{ color: '#b8b6b4', fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>Sortium ▼</div>
-					</div>
+					<SortiumContextMenuButton activeMetric={activeMetric} onSortChange={handleSortChange} />
 				)}
 
 				<SortiumDirectionToggle direction={activeDirection} onDirectionChange={setActiveDirection} />

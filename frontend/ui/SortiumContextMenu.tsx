@@ -1,5 +1,5 @@
-import { Menu, MenuItem, MenuGroup, showContextMenu } from '@steambrew/client';
-import { getAvailableStreams, getSettings } from '../services/settings';
+import { Menu, MenuItem, MenuGroup, showContextMenu, Dropdown, findModule } from '@steambrew/client';
+import { getAvailableStreams, getSettings, getMetricLabel } from '../services/settings';
 
 export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metricId: string, direction: 'asc' | 'desc') => void) {
 	const streams = getAvailableStreams();
@@ -29,7 +29,7 @@ export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metr
 		</Menu>
 	);
 
-	showContextMenu(menuContent, e.currentTarget || undefined);
+	showContextMenu(menuContent, e.currentTarget || undefined, { bOverlapHorizontal: true, bGrowToElementWidth: true });
 }
 
 export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
@@ -61,4 +61,29 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 	);
 
 	showContextMenu(menuContent, e.currentTarget || undefined);
+}
+
+interface SortiumContextMenuButtonProps {
+	activeMetric: string;
+	onSortChange: (metricId: string, direction: 'asc' | 'desc') => void;
+}
+
+export function SortiumContextMenuButton({ activeMetric, onSortChange }: SortiumContextMenuButtonProps) {
+	const sortModule = findModule((m) => m.SortingDropDown && m.SortingDropDownLabel) || {};
+	const label = getMetricLabel(activeMetric);
+
+	return (
+		<div
+			className={sortModule.SortingDropDown}
+			tabIndex={-1}
+			onClickCapture={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				triggerGridMenu(e, onSortChange);
+			}}
+		>
+			<div className={sortModule.SortingDropDownLabel}>Sort By</div>
+			<Dropdown rgOptions={[{ label: label, data: activeMetric }]} selectedOption={activeMetric} onChange={() => {}} />
+		</div>
+	);
 }

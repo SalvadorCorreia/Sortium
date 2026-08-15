@@ -92,6 +92,16 @@ export function getAvailableStreams(): DataStream[] {
 	return cachedStreams;
 }
 
+export function getMetricLabel(metricId: string): string {
+	for (const stream of cachedStreams) {
+		const metric = stream.metrics.find((m) => m.id === metricId);
+		if (metric) {
+			return `[${stream.tag || stream.name}] ${metric.name}`;
+		}
+	}
+	return 'Sortium';
+}
+
 export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	const previousSettings = cachedSettings;
 	cachedSettings = settings;
