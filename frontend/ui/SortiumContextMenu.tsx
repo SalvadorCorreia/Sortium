@@ -33,30 +33,62 @@ export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metr
 }
 
 export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
-	const availableCollections = ['RPG', 'Multiplayer', 'Backlog'];
-	const currentCollections = ['Action', 'Currently Playing'];
+	const isFavorite = collectionStore.BIsFavorite(appId);
+	const userCollections = collectionStore.userCollections || [];
+	const appCollections = collectionStore.GetCollectionListForAppID(appId) || [];
+
+	const appCollectionIds = new Set(appCollections.map((c: any) => c.m_strId));
+
+	const systemIds = ['favorite', 'soundtracks', 'uncategorized', 'hidden'];
+	const isValidCollection = (c: any) => {
+		if (typeof collectionStore.BIsSystemCollectionId === 'function' && collectionStore.BIsSystemCollectionId(c.m_strId)) {
+			return false;
+		}
+		return !systemIds.includes(c.m_strId);
+	};
+
+	const filteredUserCollections = userCollections.filter(isValidCollection);
+
+	const availableCollections = filteredUserCollections.filter((c: any) => !appCollectionIds.has(c.m_strId));
+	const currentCollections = filteredUserCollections.filter((c: any) => appCollectionIds.has(c.m_strId));
+
+	const handleFavorite = () => {
+		collectionStore.SetAppsAsFavorite([appId], !isFavorite);
+	};
+
+	const handleCollectionToggle = (collection: any, isAdding: boolean) => {
+		try {
+			collectionStore.AddOrRemoveApp([appId], isAdding, collection.m_strId);
+		} catch (err) {
+			console.error('Sortium: Failed to toggle collection', err);
+		}
+	};
 
 	const menuContent = (
 		<Menu label="Capsule Options">
-			<MenuItem onSelected={() => console.log(`Add ${appId} to favorites`)}>Add to favorites</MenuItem>
+			<MenuItem onSelected={handleFavorite}>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</MenuItem>
 
-			<MenuGroup label="Add to">
-				{availableCollections.map((collectionName) => (
-					// @ts-expect-error
-					<MenuItem key={collectionName} onSelected={() => console.log(`Add ${appId} to ${collectionName}`)}>
-						{collectionName}
-					</MenuItem>
-				))}
-			</MenuGroup>
+			{availableCollections.length > 0 && (
+				<MenuGroup label="Add to">
+					{availableCollections.map((collection: any) => (
+						// @ts-expect-error
+						<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, true)}>
+							{collection.m_strName.toUpperCase()}
+						</MenuItem>
+					))}
+				</MenuGroup>
+			)}
 
-			<MenuGroup label="Remove from">
-				{currentCollections.map((collectionName) => (
-					// @ts-expect-error
-					<MenuItem key={collectionName} onSelected={() => console.log(`Remove ${appId} from ${collectionName}`)}>
-						{collectionName}
-					</MenuItem>
-				))}
-			</MenuGroup>
+			{currentCollections.length > 0 && (
+				<MenuGroup label="Remove from">
+					{currentCollections.map((collection: any) => (
+						// @ts-expect-error
+						<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, false)}>
+							{collection.m_strName.toUpperCase()}
+						</MenuItem>
+					))}
+				</MenuGroup>
+			)}
 		</Menu>
 	);
 
