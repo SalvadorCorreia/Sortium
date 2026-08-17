@@ -1,4 +1,4 @@
-import { Menu, MenuItem, MenuGroup, showContextMenu, Dropdown, findModule } from '@steambrew/client';
+import { Menu, MenuItem, MenuGroup, showContextMenu, Dropdown, findModule, MenuSeparator } from '@steambrew/client';
 import { getAvailableStreams, getSettings, getMetricLabel } from '../services/settings';
 
 export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metricId: string, direction: 'asc' | 'desc') => void) {
@@ -64,6 +64,10 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 		}
 	};
 
+	const handleProperties = () => {
+		SteamClient.Apps.OpenAppSettingsDialog(appId, '');
+	};
+
 	const menuContent = (
 		<Menu label="Capsule Options">
 			<MenuItem onSelected={handleFavorite}>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</MenuItem>
@@ -89,6 +93,9 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 					))}
 				</MenuGroup>
 			)}
+
+			<MenuSeparator />
+			<MenuItem onSelected={handleProperties}>Properties...</MenuItem>
 		</Menu>
 	);
 
