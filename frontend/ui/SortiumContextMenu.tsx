@@ -33,6 +33,12 @@ export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metr
 }
 
 export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
+	const contextMenuModule = findModule((m) => m.ContextMenuMouseOverlay) || {};
+	const actionModule = findModule((m) => m.LeftListMaxPercentage) || {};
+
+	const appOverview = appStore.GetAppOverviewByAppID(appId);
+	const isInstalled = appOverview?.installed;
+
 	const isFavorite = collectionStore.BIsFavorite(appId);
 	const userCollections = collectionStore.userCollections || [];
 	const appCollections = collectionStore.GetCollectionListForAppID(appId) || [];
@@ -52,6 +58,14 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 	const availableCollections = filteredUserCollections.filter((c: any) => !appCollectionIds.has(c.m_strId));
 	const currentCollections = filteredUserCollections.filter((c: any) => appCollectionIds.has(c.m_strId));
 
+	const handlePrimaryAction = () => {
+		if (isInstalled) {
+			SteamClient.Apps.RunGame(appId.toString(), '', -1, 0);
+		} else {
+			SteamClient.Installs.OpenInstallWizard([appId]);
+		}
+	};
+
 	const handleFavorite = () => {
 		collectionStore.SetAppsAsFavorite([appId], !isFavorite);
 	};
@@ -68,8 +82,44 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 		SteamClient.Apps.OpenAppSettingsDialog(appId, '');
 	};
 
+	const primaryActionClass = isInstalled ? 'Play' : 'Install';
+
 	const menuContent = (
 		<Menu label="Capsule Options">
+			{/* @ts-expect-error */}
+			<MenuItem className={`${primaryActionClass} ${actionModule.ContextMenuAction} ${contextMenuModule.contextMenuItem}`} onSelected={handlePrimaryAction}>
+				{isInstalled ? (
+					<svg
+						version="1.1"
+						id="Layer_1"
+						xmlns="http://www.w3.org/2000/svg"
+						className="SVGIcon_Button SVGIcon_Play"
+						x="0px"
+						y="0px"
+						width="256px"
+						height="256px"
+						viewBox="0 0 256 256"
+					>
+						<path
+							className="playTriangle"
+							d="M65.321,33.521c-11.274-6.615-20.342-1.471-20.342,11.52V210.96c0,12.989,9.068,18.135,20.342,11.521l137.244-82.348 c11.274-6.618,11.274-17.646,0-24.509L65.321,33.521z"
+						></path>
+					</svg>
+				) : (
+					<svg xmlns="http://www.w3.org/2000/svg" className="SVGIcon_Button SVGIcon_Download" viewBox="0 0 36 36" fill="none">
+						<path fillRule="evenodd" clipRule="evenodd" d="M29 23V27H7V23H2V32H34V23H29Z" fill="currentColor"></path>
+						<svg x="0" y="0" width="32" height="25">
+							<path
+								className="DownloadArrow"
+								d="M20 14.1716L24.5858 9.58578L27.4142 12.4142L18 21.8284L8.58582 12.4142L11.4142 9.58578L16 14.1715V2H20V14.1716Z"
+								fill="currentColor"
+							></path>
+						</svg>
+					</svg>
+				)}
+				{isInstalled ? 'Play' : 'Install'}
+			</MenuItem>
+
 			<MenuItem onSelected={handleFavorite}>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</MenuItem>
 
 			{availableCollections.length > 0 && (
