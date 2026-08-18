@@ -64,11 +64,11 @@ export default function SettingsMenu() {
 		await saveSettings(newSettings);
 	};
 
-	const toggleLibraryButton = async (checked: boolean) => {
+	/* const toggleLibraryButton = async (checked: boolean) => {
 		const newSettings = { ...settings, enableLibraryButton: checked };
 		setSettingsState(newSettings);
 		await saveSettings(newSettings);
-	};
+	}; */
 
 	const toggleCollectionButton = async (checked: boolean) => {
 		const newSettings = { ...settings, enableCollectionButton: checked };
@@ -119,7 +119,6 @@ export default function SettingsMenu() {
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>User Interface</DialogControlsSectionHeader>
 				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Choose where the Sortium sorting button should be injected within Steam.</div>
-
 				<Field label="Sorting Menu Style" description="How the sorting options are presented in the library." bottomSeparator="standard">
 					<div style={{ width: '100%', maxWidth: '250px', minWidth: 0 }}>
 						<Dropdown
@@ -139,6 +138,7 @@ export default function SettingsMenu() {
 					onChange={toggleSortiumViewActive}
 					bottomSeparator="standard"
 				/>
+				{/*
 				<ToggleField
 					label="Enable Library Button"
 					description="Show the sorting button on the main Library home page."
@@ -146,6 +146,7 @@ export default function SettingsMenu() {
 					onChange={toggleLibraryButton}
 					bottomSeparator="standard"
 				/>
+				*/}
 				<ToggleField
 					label="Enable Collection Button"
 					description="Show the sorting button inside individual Collections."
