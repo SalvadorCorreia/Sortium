@@ -149,7 +149,7 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 		</Menu>
 	);
 
-	showContextMenu(menuContent, e.currentTarget || undefined);
+	showContextMenu(menuContent, e as any);
 }
 
 interface SortiumContextMenuButtonProps {
