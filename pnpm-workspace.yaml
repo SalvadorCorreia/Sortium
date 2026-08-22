@@ -1,5 +1,7 @@
 packages:
   - "."
+overrides:
+  typescript: "5.9.3"
 allowBuilds:
   '@parcel/watcher': false
   esbuild: false

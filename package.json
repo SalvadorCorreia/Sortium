@@ -24,10 +24,5 @@
 		"@steambrew/client": "^5.5.3",
 		"@steambrew/ttc": "^3.3.7",
 		"@steambrew/webkit": "^5.5.3"
-	},
-	"pnpm": {
-		"overrides": {
-			"typescript": "5.9.3"
-		}
 	}
 }

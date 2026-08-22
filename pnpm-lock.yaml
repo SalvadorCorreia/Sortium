@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  typescript: 5.9.3
+
 importers:
 
   .:
@@ -39,6 +42,9 @@ importers:
       '@types/webpack':
         specifier: ^5.28.5
         version: 5.28.5(esbuild@0.28.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -960,7 +966,7 @@ packages:
     peerDependencies:
       rollup: ^2.14.0||^3.0.0||^4.0.0
       tslib: '*'
-      typescript: '>=3.7.0'
+      typescript: 5.9.3
     peerDependenciesMeta:
       rollup:
         optional: true
@@ -973,7 +979,7 @@ packages:
     peerDependencies:
       rollup: ^2.14.0||^3.0.0||^4.0.0
       tslib: '*'
-      typescript: '>=3.7.0'
+      typescript: 5.9.3
     peerDependenciesMeta:
       rollup:
         optional: true
@@ -1950,11 +1956,6 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
-
-  typescript@4.9.5:
-    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
-    engines: {node: '>=4.2.0'}
-    hasBin: true
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -3020,11 +3021,11 @@ snapshots:
     optionalDependencies:
       rollup: 4.60.4
 
-  '@rollup/plugin-typescript@11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@4.9.5)':
+  '@rollup/plugin-typescript@11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@5.9.3)':
     dependencies:
       '@rollup/pluginutils': 5.3.0(rollup@4.60.4)
       resolve: 1.22.12
-      typescript: 4.9.5
+      typescript: 5.9.3
     optionalDependencies:
       rollup: 4.60.4
       tslib: 2.8.1
@@ -3152,14 +3153,14 @@ snapshots:
       '@rollup/plugin-node-resolve': 15.3.1(rollup@4.60.4)
       '@rollup/plugin-replace': 5.0.7(rollup@4.60.4)
       '@rollup/plugin-terser': 0.4.4(rollup@4.60.4)
-      '@rollup/plugin-typescript': 11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@4.9.5)
+      '@rollup/plugin-typescript': 11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@5.9.3)
       chalk: 4.1.2
       devtools-protocol: 0.0.1485358
       path: 0.12.7
       rollup: 4.60.4
       shx: 0.3.4
       tslib: 2.8.1
-      typescript: 4.9.5
+      typescript: 5.9.3
       url: 0.11.4
 
   '@steambrew/client@5.8.5':
@@ -3169,14 +3170,14 @@ snapshots:
       '@rollup/plugin-node-resolve': 15.3.1(rollup@4.60.4)
       '@rollup/plugin-replace': 5.0.7(rollup@4.60.4)
       '@rollup/plugin-terser': 0.4.4(rollup@4.60.4)
-      '@rollup/plugin-typescript': 11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@4.9.5)
+      '@rollup/plugin-typescript': 11.1.6(rollup@4.60.4)(tslib@2.8.1)(typescript@5.9.3)
       chalk: 4.1.2
       devtools-protocol: 0.0.1485358
       path: 0.12.7
       rollup: 4.60.4
       shx: 0.3.4
       tslib: 2.8.1
-      typescript: 4.9.5
+      typescript: 5.9.3
       url: 0.11.4
 
   '@steambrew/ttc@3.3.7(@babel/core@7.29.7)(esbuild@0.28.1)':
@@ -3222,7 +3223,7 @@ snapshots:
     dependencies:
       shx: 0.3.4
       tslib: 2.8.1
-      typescript: 4.9.5
+      typescript: 5.9.3
 
   '@types/estree@1.0.8': {}
 
@@ -4041,8 +4042,6 @@ snapshots:
       source-map-support: 0.5.21
 
   tslib@2.8.1: {}
-
-  typescript@4.9.5: {}
 
   typescript@5.9.3: {}
 
