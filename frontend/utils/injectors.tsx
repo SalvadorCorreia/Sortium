@@ -6,6 +6,20 @@ import { SortiumGrid } from '../ui/SortiumGrid';
 import { waitForElement, waitForAllElements } from './dom';
 import { logger } from '../services/logger';
 
+const injectedRoots = new Map<HTMLElement, any>();
+
+export function cleanupInjectors() {
+	for (const [node, root] of injectedRoots.entries()) {
+		try {
+			root.unmount();
+			node.remove();
+		} catch (err) {
+			logger.warn('Failed to clean up injected element:', err);
+		}
+	}
+	injectedRoots.clear();
+}
+
 export async function injectHomeDropdowns(popup: any) {
 	const headers = await waitForAllElements(`div.${findModule((e) => e.ShowcaseHeader).ShowcaseHeader}`, popup.m_popup.document);
 
@@ -22,6 +36,7 @@ export async function injectHomeDropdowns(popup: any) {
 
 			const sortiumRoot = createRoot(sortiumDropdown);
 			sortiumRoot.render(<SortiumDropdown />);
+			injectedRoots.set(sortiumDropdown, sortiumRoot);
 
 			headerDiv.insertBefore(sortiumDropdown, headerDiv.firstChild!.nextSibling!.nextSibling);
 		}
@@ -51,6 +66,7 @@ export async function injectCollectionToggle(popup: any) {
 
 	const sortiumRoot = createRoot(sortiumToggle);
 	sortiumRoot.render(<SortiumToggle popup={popup} />);
+	injectedRoots.set(sortiumToggle, sortiumRoot);
 
 	headerDiv.insertBefore(sortiumToggle, headerDiv.firstChild);
 }
@@ -82,6 +98,7 @@ export async function injectSortiumGrid(popup: any) {
 
 	const gridRoot = createRoot(sortiumGridDiv);
 	gridRoot.render(<SortiumGrid popup={popup} />);
+	injectedRoots.set(sortiumGridDiv, gridRoot);
 
 	headerDiv.parentNode.insertBefore(sortiumGridDiv, headerDiv.nextSibling);
 }

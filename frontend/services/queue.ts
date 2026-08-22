@@ -30,6 +30,8 @@ class QueueService {
 	private recovering = false;
 	private listeners: Set<() => void> = new Set();
 
+	private isDismounted = false;
+
 	public subscribe(fn: () => void): () => void {
 		this.listeners.add(fn);
 		return () => {
@@ -43,6 +45,10 @@ class QueueService {
 
 	public getCachedData(streamId: string, appId: number): any {
 		return this.cache[streamId]?.[appId.toString()]?.data || null;
+	}
+
+	public dismount() {
+		this.isDismounted = true;
 	}
 
 	public async enqueue(appIds: number[], metric: string) {
@@ -88,7 +94,6 @@ class QueueService {
 			const target = `${streamId}:${id}`;
 
 			if (!entry || age > hardLimit) {
-				// Ensure target moves to the top of the LIFO stack
 				this.highPriority = this.highPriority.filter((item) => item !== target);
 				this.highPriority.push(target);
 				addedHigh++;
@@ -115,14 +120,16 @@ class QueueService {
 		logger.info('QueueService: Starting background queue processing.');
 
 		while (this.highPriority.length > 0 || this.lowPriority.length > 0) {
+			if (this.isDismounted) break;
+
 			let target: string | undefined;
 			let isHigh = false;
 
 			if (this.highPriority.length > 0) {
-				target = this.highPriority.pop(); // LIFO
+				target = this.highPriority.pop();
 				isHigh = true;
 			} else {
-				target = this.lowPriority.shift(); // FIFO
+				target = this.lowPriority.shift();
 			}
 
 			if (!target) continue;
@@ -199,7 +206,7 @@ class QueueService {
 			await new Promise((r) => setTimeout(r, 500));
 		}
 
-		logger.info('QueueService: Processing complete. Queue is empty.');
+		logger.info('QueueService: Processing complete or interrupted. Queue halted.');
 		this.processing = false;
 	}
 
@@ -217,7 +224,11 @@ class QueueService {
 		logger.info('QueueService: Starting background recovery subsystem.');
 
 		while (Object.values(this.streamStates).includes('RATE_LIMITED')) {
+			if (this.isDismounted) break;
+
 			await new Promise((r) => setTimeout(r, 60000));
+
+			if (this.isDismounted) break;
 
 			for (const [streamId, state] of Object.entries(this.streamStates)) {
 				if (state === 'RATE_LIMITED') {
@@ -272,7 +283,7 @@ class QueueService {
 			}
 		}
 
-		logger.info('QueueService: Recovery complete. All streams healthy.');
+		logger.info('QueueService: Recovery complete or interrupted.');
 		this.recovering = false;
 	}
 
