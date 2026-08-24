@@ -6,7 +6,7 @@ A Millennium plugin that adds advanced collection sorting for the Steam client.
 
 ## Features
 
-*   **HowLongToBeat Sorting:** Sort visible games by Main Story, Main + Extras, Completionist, or All Styles timeframes.
+*   **HowLongToBeat Sorting:** Sort visible games by Main Story, Main + Extras, Completionist, or All Styles timeframes. Note: This data is sourced via the third-party Augmented Steam API (api.augmentedsteam.com).
 *   **Steam Hunters Sorting:** Sort visible games by Median Time, Fastest Time, Hunter Points, SteamDB Rating, or Achievement count.
 
 ## Usage
