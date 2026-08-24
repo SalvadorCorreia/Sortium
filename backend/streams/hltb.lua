@@ -16,7 +16,12 @@ M.metrics = {
 }
 
 function M.fetch(app_id)
-	local url = "https://api.augmentedsteam.com/app/" .. tostring(app_id) .. "/v2"
+	local numeric_id = tonumber(app_id)
+	if not numeric_id then
+		return { data = nil, error = true, details = "Invalid App ID" }
+	end
+
+	local url = "https://api.augmentedsteam.com/app/" .. tostring(numeric_id) .. "/v2"
 
 	local ok, response = pcall(http.request, url)
 

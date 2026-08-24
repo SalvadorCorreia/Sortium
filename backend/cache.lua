@@ -1,14 +1,28 @@
 local json = require("json")
 local logger = require("logger")
 local millennium = require("millennium")
+local registry = require("streams.registry")
 
 local M = {}
+
+local function is_valid_stream(stream_id)
+	for _, stream in ipairs(registry) do
+		if stream.id == stream_id then
+			return true
+		end
+	end
+	return false
+end
 
 local function get_cache_path(stream_id)
 	return millennium.get_install_path() .. "/cache_" .. stream_id .. ".json"
 end
 
 function M.load_stream(stream_id)
+	if not is_valid_stream(stream_id) then
+		return {}
+	end
+
 	local path = get_cache_path(stream_id)
 	local file = io.open(path, "r")
 	if not file then
@@ -28,6 +42,11 @@ function M.load_stream(stream_id)
 end
 
 function M.save_stream(stream_id, new_data)
+	if not is_valid_stream(stream_id) then
+		logger:error("Sortium: Invalid stream ID provided to save_stream: " .. tostring(stream_id))
+		return false
+	end
+
 	local existing_cache = M.load_stream(stream_id)
 
 	for app_id, entry_payload in pairs(new_data) do
@@ -54,6 +73,11 @@ function M.save_stream(stream_id, new_data)
 end
 
 function M.clear_stream(stream_id)
+	if not is_valid_stream(stream_id) then
+		logger:error("Sortium: Invalid stream ID provided to clear_stream: " .. tostring(stream_id))
+		return false
+	end
+
 	local path = get_cache_path(stream_id)
 	os.remove(path)
 	logger:info("Sortium: Cleared cache file for stream " .. stream_id)

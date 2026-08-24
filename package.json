@@ -1,6 +1,6 @@
 {
 	"name": "sortium",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Advanced library sorting for the Steam client based on global completion metrics.",
 	"author": "Salvador",
 	"license": "MIT",
@@ -16,7 +16,8 @@
 		"@babel/traverse": "^7.28.3",
 		"@types/react": "^19.2.15",
 		"@types/react-dom": "^19.2.3",
-		"@types/webpack": "^5.28.5"
+		"@types/webpack": "^5.28.5",
+		"typescript": "5.9.3"
 	},
 	"dependencies": {
 		"@steambrew/api": "^5.5.3",
