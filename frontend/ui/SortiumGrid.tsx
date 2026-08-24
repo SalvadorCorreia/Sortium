@@ -2,6 +2,7 @@ import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
+import { SortiumStreamWarning } from './SortiumStreamWarning';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings, saveSettings } from '../services/settings';
 import { queueService } from '../services/queue';
@@ -120,6 +121,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 				)}
 
 				<SortiumDirectionToggle direction={activeDirection} onDirectionChange={setActiveDirection} />
+				<SortiumStreamWarning activeMetric={activeMetric} />
 
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>
 			</div>
