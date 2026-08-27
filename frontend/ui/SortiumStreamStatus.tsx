@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Focusable, findModule } from '@steambrew/client';
 import { queueService } from '../services/queue';
 
-interface SortiumStreamWarningProps {
+interface SortiumStreamStatusProps {
 	activeMetric: string;
+	resolvedCount: number;
+	totalCount: number;
 }
 
-export function SortiumStreamWarning({ activeMetric }: SortiumStreamWarningProps) {
+export function SortiumStreamStatus({ activeMetric, resolvedCount, totalCount }: SortiumStreamStatusProps) {
 	const iconButtonModule = findModule((m) => m.IconButton) || {};
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 
@@ -19,13 +21,10 @@ export function SortiumStreamWarning({ activeMetric }: SortiumStreamWarningProps
 		return () => unsubscribe();
 	}, [streamId]);
 
-	if (!isRateLimited) {
-		return null;
-	}
-
-	return (
-		<div title="API Rate Limited - Stream suspended temporarily" style={{ display: 'flex' }}>
+	if (isRateLimited) {
+		return (
 			<Focusable
+				title="API Rate Limited - Stream suspended temporarily"
 				className={iconButtonModule.IconButton}
 				style={{
 					display: 'flex',
@@ -50,6 +49,53 @@ export function SortiumStreamWarning({ activeMetric }: SortiumStreamWarningProps
 					</svg>
 				}
 			/>
-		</div>
-	);
+		);
+	}
+
+	if (resolvedCount < totalCount) {
+		return (
+			<Focusable
+				title={`Fetching data... (${resolvedCount}/${totalCount})`}
+				className={iconButtonModule.IconButton}
+				style={{
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					cursor: 'default',
+					background: 'transparent',
+					border: 'none',
+					padding: '0 0.5em',
+					marginLeft: '4px',
+					fontSize: '1em',
+					color: '#b8b6b4',
+					gap: '6px',
+				}}
+				children={
+					<>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							width="1.2em"
+							height="1.2em"
+						>
+							<g>
+								<path d="M21 12a9 9 0 1 1-6.219-8.56" />
+								<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+							</g>
+						</svg>
+						<span style={{ lineHeight: 1 }}>
+							({resolvedCount}/{totalCount})
+						</span>
+					</>
+				}
+			/>
+		);
+	}
+
+	return null;
 }
