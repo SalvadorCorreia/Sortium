@@ -72,23 +72,22 @@ export async function injectCollectionToggle(popup: any) {
 }
 
 export async function injectSortiumGrid(popup: any) {
-	const headerModule = findModule((m) => m.Header && m.CollectionName && m.DynamicCollectionLabelAndButton);
+	const gridModule = findModule((m) => m.GridWithControls);
 
-	if (!headerModule || !headerModule.Header) {
-		logger.warn('Could not find the Header module for Grid injection.');
+	if (!gridModule || !gridModule.GridWithControls) {
+		logger.warn('Could not find the GridWithControls module for Grid injection.');
 		return;
 	}
 
-	const headerDiv = await waitForElement(`div.${headerModule.Header}`, popup.m_popup.document);
-	if (!headerDiv || !headerDiv.parentNode) {
-		logger.warn('Collection header or its parent node not found. Grid injection aborted.');
-		return;
-	}
-
-	const oldSortiumGrid = headerDiv.parentNode.querySelector('div.sortium-grid');
-
+	const oldSortiumGrid = popup.m_popup.document.querySelector('div.sortium-grid');
 	if (oldSortiumGrid) {
 		oldSortiumGrid.remove();
+	}
+
+	const nativeGrid = await waitForElement(`div.${gridModule.GridWithControls}`, popup.m_popup.document);
+	if (!nativeGrid || !nativeGrid.parentNode) {
+		logger.warn('Native grid or its parent node not found. Grid injection aborted.');
+		return;
 	}
 
 	const sortiumGridDiv = popup.m_popup.document.createElement('div');
@@ -100,5 +99,5 @@ export async function injectSortiumGrid(popup: any) {
 	gridRoot.render(<SortiumGrid popup={popup} />);
 	injectedRoots.set(sortiumGridDiv, gridRoot);
 
-	headerDiv.parentNode.insertBefore(sortiumGridDiv, headerDiv.nextSibling);
+	nativeGrid.parentNode.insertBefore(sortiumGridDiv, nativeGrid);
 }

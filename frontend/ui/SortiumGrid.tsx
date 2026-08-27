@@ -2,7 +2,7 @@ import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
-import { SortiumStreamWarning } from './SortiumStreamWarning';
+import { SortiumStreamStatus } from './SortiumStreamStatus';
 import { SortiumCapsule } from './SortiumCapsule';
 import { getSettings, saveSettings } from '../services/settings';
 import { queueService } from '../services/queue';
@@ -110,6 +110,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 	const dataResolver = (id: number) => queueService.getCachedData(streamId, id);
 	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver, activeDirection) : [];
+	const resolvedCount = appIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
 
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
@@ -121,7 +122,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 				)}
 
 				<SortiumDirectionToggle direction={activeDirection} onDirectionChange={setActiveDirection} />
-				<SortiumStreamWarning activeMetric={activeMetric} />
+				<SortiumStreamStatus activeMetric={activeMetric} resolvedCount={resolvedCount} totalCount={appIds.length} />
 
 				<div className={collectionModule.CollectionOptionsRightJustified}></div>
 			</div>

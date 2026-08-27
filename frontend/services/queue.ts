@@ -49,6 +49,10 @@ class QueueService {
 		return this.cache[streamId]?.[appId.toString()]?.data || null;
 	}
 
+	public hasCacheEntry(streamId: string, appId: number): boolean {
+		return this.cache[streamId]?.[appId.toString()] !== undefined;
+	}
+
 	public getStreamState(streamId: string): StreamState {
 		return this.streamStates[streamId] || 'HEALTHY';
 	}
