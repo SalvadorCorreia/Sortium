@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	sortiumViewActive: false,
 	softCacheDays: 4,
 	hardCacheDays: 7,
-	enableLogging: true,
+	enableLogging: false,
 	enableLibraryButton: true,
 	enableCollectionButton: true,
 };
