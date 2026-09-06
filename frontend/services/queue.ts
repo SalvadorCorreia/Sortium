@@ -162,7 +162,7 @@ class QueueService {
 				if (!this.suspendedPool[streamId].includes(numAppId)) {
 					this.suspendedPool[streamId].push(numAppId);
 				}
-				continue;
+				break;
 			}
 
 			try {
