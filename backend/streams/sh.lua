@@ -19,36 +19,43 @@ M.metrics = {
 function M.fetch(app_id)
 	local numeric_id = tonumber(app_id)
 	if not numeric_id then
-		return { data = nil, error = true, details = "Invalid App ID" }
+		return { data = nil, error = true, details = "Invalid App ID", status = 400 }
 	end
 
 	local url = "https://steamhunters.com/api/apps/" .. tostring(numeric_id)
 
-	local ok, response = pcall(http.request, url)
+	local options = {
+		url = url,
+		timeout = 10000,
+		verify_ssl = true,
+		user_agent = "Sortium-Plugin/1.0",
+	}
+
+	local ok, response = pcall(http.request, options)
 
 	if not ok then
 		local err_msg = "HTTP pcall failed: " .. tostring(response)
 		logger:error("[SH] " .. err_msg)
-		return { data = nil, error = true, details = err_msg }
+		return { data = nil, error = true, details = err_msg, status = 0 }
 	end
 
 	if not response then
 		local err_msg = "No response object returned from HTTP request"
 		logger:error("[SH] " .. err_msg)
-		return { data = nil, error = true, details = err_msg }
+		return { data = nil, error = true, details = err_msg, status = 0 }
 	end
 
 	if response.status ~= 200 then
 		local err_msg = "Bad HTTP Status: " .. tostring(response.status) .. " | Body: " .. tostring(response.body)
 		logger:error("[SH] " .. err_msg)
-		return { data = nil, error = true, details = err_msg }
+		return { data = nil, error = true, details = err_msg, status = response.status }
 	end
 
 	local parsed_ok, body = pcall(json.decode, response.body)
 	if not parsed_ok then
 		local err_msg = "JSON decode failed. Error: " .. tostring(body) .. " | Raw Body: " .. tostring(response.body)
 		logger:error("[SH] " .. err_msg)
-		return { data = nil, error = true, details = err_msg }
+		return { data = nil, error = true, details = err_msg, status = response.status }
 	end
 
 	local result_data = {
@@ -59,7 +66,7 @@ function M.fetch(app_id)
 		achievements = body.achievementCount,
 	}
 
-	return { data = result_data, error = false }
+	return { data = result_data, error = false, status = response.status }
 end
 
 return M
