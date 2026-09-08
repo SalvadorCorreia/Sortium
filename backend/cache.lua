@@ -61,7 +61,9 @@ function M.save_stream(stream_id, new_data)
 	end
 
 	local path = get_cache_path(stream_id)
-	local file, err = io.open(path, "w")
+	local tmp_path = path .. ".tmp"
+
+	local file, err = io.open(tmp_path, "w")
 	if not file then
 		logger:error("Failed to open cache stream file for writing: " .. tostring(err))
 		return false
@@ -69,6 +71,14 @@ function M.save_stream(stream_id, new_data)
 
 	file:write(json.encode(existing_cache))
 	file:close()
+
+	os.remove(path)
+	local success, rename_err = os.rename(tmp_path, path)
+	if not success then
+		logger:error("Failed to rename temporary cache file: " .. tostring(rename_err))
+		return false
+	end
+
 	return true
 end
 

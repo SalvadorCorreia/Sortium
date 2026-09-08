@@ -162,7 +162,7 @@ class QueueService {
 				if (!this.suspendedPool[streamId].includes(numAppId)) {
 					this.suspendedPool[streamId].push(numAppId);
 				}
-				continue;
+				break;
 			}
 
 			try {
@@ -192,14 +192,11 @@ class QueueService {
 					);
 					this.notify();
 				} else {
-					const errorReason = String(res.error || (res.result && res.result.details) || 'Unknown backend error');
-					const isRateLimit =
-						errorReason.includes('429') ||
-						errorReason.includes('500') ||
-						errorReason.toLowerCase().includes('timeout') ||
-						errorReason.toLowerCase().includes('internal server error');
+					const status = Number(res?.result?.status) || 0;
+					const errorReason = String(res.error || res.result?.details || 'Unknown backend error');
+					const isRateLimit = status === 429 || status === 503;
 
-					logger.warn(`QueueService [${streamId}]: Fetch error on AppID ${appId}. Reason: ${errorReason}.`);
+					logger.warn(`QueueService [${streamId}]: Fetch error on AppID ${appId} (Status: ${status}). Reason: ${errorReason}.`);
 
 					if (isRateLimit) {
 						this.handleRateLimit(streamId, Number(appId));
@@ -208,17 +205,8 @@ class QueueService {
 					}
 				}
 			} catch (error) {
-				logger.error(`QueueService [${streamId}]: IPC or network failure fetching AppID ${appId}.`, error);
-
-				const errorString = String(error).toLowerCase();
-				const isRateLimit =
-					errorString.includes('429') || errorString.includes('500') || errorString.includes('timeout') || errorString.includes('internal server error');
-
-				if (isRateLimit) {
-					this.handleRateLimit(streamId, Number(appId));
-				} else {
-					this.handleTransientError(streamId, appId);
-				}
+				logger.error(`QueueService [${streamId}]: IPC failure fetching AppID ${appId}.`, error);
+				this.handleTransientError(streamId, appId);
 			}
 
 			await new Promise((r) => setTimeout(r, 500));
@@ -326,7 +314,8 @@ class QueueService {
 					this.startProcessing(streamId);
 					break;
 				} else {
-					logger.warn(`QueueService [${streamId}]: Stream is still rate limited.`);
+					const status = Number(res?.result?.status) || 0;
+					logger.warn(`QueueService [${streamId}]: Stream test failed during recovery (Status: ${status}).`);
 				}
 			} catch (error) {
 				logger.warn(`QueueService [${streamId}]: Stream test failed during recovery.`);
