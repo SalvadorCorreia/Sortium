@@ -25,13 +25,12 @@ function M.fetch(app_id)
 	local url = "https://steamhunters.com/api/apps/" .. tostring(numeric_id)
 
 	local options = {
-		url = url,
 		timeout = 10000,
 		verify_ssl = true,
 		user_agent = "Sortium-Plugin/1.0",
 	}
 
-	local ok, response = pcall(http.request, options)
+	local ok, response = pcall(http.request, url, options)
 
 	if not ok then
 		local err_msg = "HTTP pcall failed: " .. tostring(response)
