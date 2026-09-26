@@ -145,10 +145,39 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 							const data = dataResolver(id);
 							const isMissing = data === null;
 							const metricValue = getMetricValue(activeMetric, data);
+							
+							const overview = appStore.GetAppOverviewByAppID(id);
+							const app = appStore.m_mapApps.get(id);
+							const title = overview?.display_name || app?.display_name || `Unknown Game (${id})`;
+
+							let imageSrcs = [`/assets/${id}/library_600x900.jpg`];
+							
+							if (overview && typeof overview.GetLibraryCapsuleURL === 'function') {
+								imageSrcs = [overview.GetLibraryCapsuleURL()];
+							} else if (overview?.rt_custom_image_mtime || overview?.custom_image_hash) {
+								const hash = overview.rt_custom_image_mtime || overview.custom_image_hash;
+								imageSrcs = [
+									`/customimages/${id}p.png?v=${hash}`,
+									`/customimages/${id}p.jpg?v=${hash}`,
+									`/assets/${id}/library_600x900.jpg`
+								];
+							} else if (app && typeof app.GetLibraryCapsuleURL === 'function') {
+								imageSrcs = [app.GetLibraryCapsuleURL()];
+							} else if (app) {
+								const filename = app.m_strLibraryCapsuleFilename || app.library_capsule_filename;
+								if (filename) {
+									imageSrcs = [`/assets/${id}/${filename}`];
+								}
+							}
 
 							return (
 								<div key={id} role="gridcell" style={{ display: 'contents' }}>
-									<SortiumCapsule appId={id} metricText={formatMetricValue(metricValue, activeMetric, isMissing)} />
+									<SortiumCapsule
+										appId={id}
+										metricText={formatMetricValue(metricValue, activeMetric, isMissing)}
+										title={title}
+										imageSrcs={imageSrcs}
+									/>
 								</div>
 							);
 						})}

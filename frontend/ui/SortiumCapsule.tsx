@@ -1,5 +1,6 @@
 import { findModule, Navigation } from '@steambrew/client';
 import { triggerCapsuleMenu } from './SortiumContextMenu';
+import { useState } from 'react';
 
 declare global {
 	var appStore: any;
@@ -8,29 +9,24 @@ declare global {
 interface SortiumCapsuleProps {
 	appId: number;
 	metricText?: string;
+	title: string;
+	imageSrcs: string[];
 }
 
-export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsuleProps) {
+export function SortiumCapsule({ appId, metricText = 'No data', title, imageSrcs }: SortiumCapsuleProps) {
 	const glowModule = findModule((m) => m.LibraryImageBackgroundGlow) || {};
 	const layoutModule = findModule((m) => m.CapsuleVisible) || {};
 	const dragModule = findModule((m) => m.GhostContainer) || {};
 	const imageModule = findModule((m) => m.GreyBackground) || {};
 
-	const app = appStore.m_mapApps.get(appId);
-	const title = app?.display_name || `Unknown Game (${appId})`;
+	const [srcIndex, setSrcIndex] = useState(0);
+	const currentSrc = imageSrcs[srcIndex] || imageSrcs[imageSrcs.length - 1];
 
-	let imageSrc = `/assets/${appId}/library_600x900.jpg`;
-
-	if (app) {
-		if (typeof app.GetLibraryCapsuleURL === 'function') {
-			imageSrc = app.GetLibraryCapsuleURL();
-		} else {
-			const filename = app.m_strLibraryCapsuleFilename || app.library_capsule_filename;
-			if (filename) {
-				imageSrc = `/assets/${appId}/${filename}`;
-			}
+	const handleImageError = () => {
+		if (srcIndex < imageSrcs.length - 1) {
+			setSrcIndex(srcIndex + 1);
 		}
-	}
+	};
 
 	const handleClick = () => {
 		Navigation.Navigate(`/library/app/${appId}`);
@@ -54,7 +50,7 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 				<div
 					className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${layoutModule.PortraitImage} ${layoutModule.Capsule} ${layoutModule.CapsuleVisible}`}
 				>
-					<img className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt={title} />
+					<img className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={currentSrc} alt={title} onError={handleImageError} />
 				</div>
 
 				<div className={`${layoutModule.LibraryItemBoxShine} ${layoutModule.Portrait}`}></div>
@@ -65,7 +61,7 @@ export function SortiumCapsule({ appId, metricText = 'No data' }: SortiumCapsule
 			<div className={layoutModule.LibraryItemBoxSubscript}>{metricText}</div>
 
 			<div className={`${imageModule.Container} ${imageModule.GreyBackground} ${imageModule.PortraitImage} ${glowModule.LibraryImageBackgroundGlow}`}>
-				<img role="presentation" className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={imageSrc} alt="" />
+				<img role="presentation" className={`${imageModule.Image} ${imageModule.Visibility} ${imageModule.Visible}`} src={currentSrc} alt="" onError={handleImageError} />
 			</div>
 		</div>
 	);
