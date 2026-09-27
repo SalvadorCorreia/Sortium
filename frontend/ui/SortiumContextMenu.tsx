@@ -124,23 +124,27 @@ export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 
 			{availableCollections.length > 0 && (
 				<MenuGroup label="Add to">
-					{availableCollections.map((collection: any) => (
-						// @ts-expect-error
-						<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, true)}>
-							{collection.m_strName.toUpperCase()}
-						</MenuItem>
-					))}
+					<div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+						{availableCollections.map((collection: any) => (
+							// @ts-expect-error
+							<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, true)}>
+								{collection.m_strName.toUpperCase()}
+							</MenuItem>
+						))}
+					</div>
 				</MenuGroup>
 			)}
 
 			{currentCollections.length > 0 && (
 				<MenuGroup label="Remove from">
-					{currentCollections.map((collection: any) => (
-						// @ts-expect-error
-						<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, false)}>
-							{collection.m_strName.toUpperCase()}
-						</MenuItem>
-					))}
+					<div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+						{currentCollections.map((collection: any) => (
+							// @ts-expect-error
+							<MenuItem key={collection.m_strId} onSelected={() => handleCollectionToggle(collection, false)}>
+								{collection.m_strName.toUpperCase()}
+							</MenuItem>
+						))}
+					</div>
 				</MenuGroup>
 			)}
 
