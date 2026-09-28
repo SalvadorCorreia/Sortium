@@ -200,6 +200,9 @@ class QueueService {
 
 					if (isRateLimit) {
 						this.handleRateLimit(streamId, Number(appId));
+					} else if (status === 404) {
+						logger.warn(`QueueService [${streamId}]: AppID ${appId} not found (404). Applying immediate negative cache.`);
+						this.applyNegativeCache(streamId, appId);
 					} else {
 						this.handleTransientError(streamId, appId);
 					}
@@ -216,6 +219,26 @@ class QueueService {
 		this.processingStreams.delete(streamId);
 	}
 
+	private applyNegativeCache(streamId: string, appId: string) {
+		const now = Math.floor(Date.now() / 1000);
+		const negativeEntry: CacheEntry = { data: null, fetchedAt: now, error: true };
+
+		if (!this.cache[streamId]) this.cache[streamId] = {};
+		this.cache[streamId][appId] = negativeEntry;
+
+		try {
+			const savePayload = { stream_id: streamId, new_data: { [appId]: negativeEntry } };
+			appendToCache({ args_json: JSON.stringify(savePayload) });
+		} catch (e) {
+			logger.error(`QueueService [${streamId}]: Failed to save negative cache to Lua`, e);
+		}
+
+		if (this.failCounts[streamId]) {
+			delete this.failCounts[streamId][appId];
+		}
+		this.notify();
+	}
+
 	private handleTransientError(streamId: string, appId: string) {
 		if (!this.failCounts[streamId]) {
 			this.failCounts[streamId] = {};
@@ -225,21 +248,7 @@ class QueueService {
 
 		if (fails >= 3) {
 			logger.warn(`QueueService [${streamId}]: AppID ${appId} reached 3 failures. Applying negative cache.`);
-			const now = Math.floor(Date.now() / 1000);
-			const negativeEntry: CacheEntry = { data: null, fetchedAt: now, error: true };
-
-			if (!this.cache[streamId]) this.cache[streamId] = {};
-			this.cache[streamId][appId] = negativeEntry;
-
-			try {
-				const savePayload = { stream_id: streamId, new_data: { [appId]: negativeEntry } };
-				appendToCache({ args_json: JSON.stringify(savePayload) });
-			} catch (e) {
-				logger.error(`QueueService [${streamId}]: Failed to save negative cache to Lua`, e);
-			}
-
-			delete this.failCounts[streamId][appId];
-			this.notify();
+			this.applyNegativeCache(streamId, appId);
 		} else {
 			if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
 			this.lowPriority[streamId].push(appId);
