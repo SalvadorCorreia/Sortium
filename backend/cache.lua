@@ -5,6 +5,8 @@ local registry = require("streams.registry")
 
 local M = {}
 
+local NUM_CHUNKS = 100
+
 local function is_valid_stream(stream_id)
 	for _, stream in ipairs(registry) do
 		if stream.id == stream_id then
@@ -14,16 +16,18 @@ local function is_valid_stream(stream_id)
 	return false
 end
 
-local function get_cache_path(stream_id)
-	return millennium.get_install_path() .. "/cache_" .. stream_id .. ".json"
+local function get_chunk_id(app_id)
+	local num = tonumber(app_id)
+	if not num then return 0 end
+	return num % NUM_CHUNKS
 end
 
-function M.load_stream(stream_id)
-	if not is_valid_stream(stream_id) then
-		return {}
-	end
+local function get_chunk_path(stream_id, chunk_id)
+	return millennium.get_install_path() .. "/cache_" .. stream_id .. "_chunk_" .. string.format("%02d", chunk_id) .. ".json"
+end
 
-	local path = get_cache_path(stream_id)
+local function load_chunk(stream_id, chunk_id)
+	local path = get_chunk_path(stream_id, chunk_id)
 	local file = io.open(path, "r")
 	if not file then
 		return {}
@@ -34,52 +38,97 @@ function M.load_stream(stream_id)
 
 	local ok, parsed = pcall(json.decode, content)
 	if not ok or type(parsed) ~= "table" then
-		logger:info("Sortium: Cache file for " .. stream_id .. " is invalid or missing, resetting.")
+		logger:info("Sortium: Cache chunk file for " .. stream_id .. " (" .. chunk_id .. ") is invalid or missing, resetting.")
 		return {}
 	end
 
 	return parsed
 end
 
-function M.save_stream(stream_id, new_data)
-	if not is_valid_stream(stream_id) then
-		logger:error("Sortium: Invalid stream ID provided to save_stream: " .. tostring(stream_id))
-		return false
-	end
-
-	local existing_cache = M.load_stream(stream_id)
-
-	for app_id, entry_payload in pairs(new_data) do
-		local app_id_str = tostring(app_id)
-		local app_id_num = tonumber(app_id)
-
-		if app_id_num then
-			existing_cache[app_id_num] = nil
-		end
-
-		existing_cache[app_id_str] = entry_payload
-	end
-
-	local path = get_cache_path(stream_id)
+local function save_chunk(stream_id, chunk_id, data)
+	local path = get_chunk_path(stream_id, chunk_id)
 	local tmp_path = path .. ".tmp"
 
 	local file, err = io.open(tmp_path, "w")
 	if not file then
-		logger:error("Failed to open cache stream file for writing: " .. tostring(err))
+		logger:error("Failed to open cache chunk file for writing: " .. tostring(err))
 		return false
 	end
 
-	file:write(json.encode(existing_cache))
+	file:write(json.encode(data))
 	file:close()
 
 	os.remove(path)
 	local success, rename_err = os.rename(tmp_path, path)
 	if not success then
-		logger:error("Failed to rename temporary cache file: " .. tostring(rename_err))
+		logger:error("Failed to rename temporary cache chunk file: " .. tostring(rename_err))
 		return false
 	end
 
 	return true
+end
+
+function M.get_batch(stream_id, app_ids)
+	if not is_valid_stream(stream_id) then
+		return {}
+	end
+
+	-- Group app_ids by chunk
+	local chunk_requests = {}
+	for _, app_id in ipairs(app_ids) do
+		local chunk_id = get_chunk_id(app_id)
+		if not chunk_requests[chunk_id] then
+			chunk_requests[chunk_id] = {}
+		end
+		table.insert(chunk_requests[chunk_id], tostring(app_id))
+	end
+
+	-- Read only necessary chunks
+	local result = {}
+	for chunk_id, ids in pairs(chunk_requests) do
+		local chunk_data = load_chunk(stream_id, chunk_id)
+		for _, id in ipairs(ids) do
+			if chunk_data[id] then
+				result[id] = chunk_data[id]
+			end
+		end
+	end
+
+	return result
+end
+
+function M.save_batch(stream_id, new_data)
+	if not is_valid_stream(stream_id) then
+		logger:error("Sortium: Invalid stream ID provided to save_batch: " .. tostring(stream_id))
+		return false
+	end
+
+	-- Group new_data by chunk
+	local chunk_updates = {}
+	for app_id, entry_payload in pairs(new_data) do
+		local chunk_id = get_chunk_id(app_id)
+		if not chunk_updates[chunk_id] then
+			chunk_updates[chunk_id] = {}
+		end
+		chunk_updates[chunk_id][tostring(app_id)] = entry_payload
+	end
+
+	-- Update and save each affected chunk exactly once
+	local all_success = true
+	for chunk_id, updates in pairs(chunk_updates) do
+		local chunk_data = load_chunk(stream_id, chunk_id)
+
+		for id, entry_payload in pairs(updates) do
+			chunk_data[id] = entry_payload
+		end
+
+		local chunk_saved = save_chunk(stream_id, chunk_id, chunk_data)
+		if not chunk_saved then
+			all_success = false
+		end
+	end
+
+	return all_success
 end
 
 function M.clear_stream(stream_id)
@@ -88,9 +137,15 @@ function M.clear_stream(stream_id)
 		return false
 	end
 
-	local path = get_cache_path(stream_id)
-	os.remove(path)
-	logger:info("Sortium: Cleared cache file for stream " .. stream_id)
+	for i = 0, NUM_CHUNKS - 1 do
+		local path = get_chunk_path(stream_id, i)
+		os.remove(path)
+	end
+	
+	-- Clean up legacy monolithic cache file if it exists
+	os.remove(millennium.get_install_path() .. "/cache_" .. stream_id .. ".json")
+
+	logger:info("Sortium: Cleared chunked cache for stream " .. stream_id)
 	return true
 end
 
