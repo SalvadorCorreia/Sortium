@@ -7,7 +7,7 @@ local M = {}
 M.id = "hltb"
 M.name = "HowLongToBeat"
 M.tag = "HLTB"
-M.delay = 1500
+M.delay = 2000
 
 M.metrics = {
 	{ id = "hltb_main", name = "Main Story", type = "time", defaultDir = "asc" },
