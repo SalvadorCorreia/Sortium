@@ -143,8 +143,17 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 					<div role="row" aria-rowindex={1} style={{ display: 'contents' }}>
 						{displayIds.map((id) => {
 							const data = dataResolver(id);
-							const isMissing = data === null;
-							const metricValue = getMetricValue(activeMetric, data);
+								const metricValue = getMetricValue(activeMetric, data);
+							const state = queueService.getEntryState(streamId, id);
+								const isError = state === 'ERROR_CACHE';
+								const isMissing = data === null && !isError;
+
+								let metricText = 'No data';
+								if (isError) {
+									metricText = 'No Data';
+								} else {
+									metricText = formatMetricValue(metricValue, activeMetric, isMissing);
+								}
 							
 							const overview = appStore.GetAppOverviewByAppID(id);
 							const app = appStore.m_mapApps.get(id);
@@ -174,7 +183,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 								<div key={id} role="gridcell" style={{ display: 'contents' }}>
 									<SortiumCapsule
 										appId={id}
-										metricText={formatMetricValue(metricValue, activeMetric, isMissing)}
+										metricText={metricText}
 										title={title}
 										imageSrcs={imageSrcs}
 									/>

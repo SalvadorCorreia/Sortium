@@ -72,6 +72,10 @@ class QueueService {
 		return this.isRateLimited[streamId] ? 'RATE_LIMITED' : 'HEALTHY';
 	}
 
+	public getEntryState(streamId: string, appId: number): string {
+		return this.cache[streamId]?.[appId.toString()]?.state || 'MISSING';
+	}
+
 	private getEntry(streamId: string, appId: string): CacheEntry {
 		if (!this.cache[streamId]) this.cache[streamId] = {};
 		if (!this.cache[streamId][appId]) {
@@ -259,6 +263,7 @@ class QueueService {
 						entry.state = 'QUEUED';
 						this.highPriority[streamId]!.push(appId);
 						this.isRateLimited[streamId] = true;
+							this.notify();
 						this.startRecoveryLoop(streamId);
 						break;
 					} else {
