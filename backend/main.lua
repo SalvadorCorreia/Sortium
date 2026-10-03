@@ -19,19 +19,7 @@ function GetCacheBatch(args_json)
 		return json.encode({ success = false, error = "Invalid arguments or malformed JSON string" })
 	end
 
-	local stream_cache = cache.load_stream(args.stream_id)
-	local result_data = {}
-
-	for _, app_id in ipairs(args.app_ids) do
-		local app_id_str = tostring(app_id)
-		local app_id_num = tonumber(app_id)
-
-		local entry = stream_cache[app_id_str] or (app_id_num and stream_cache[app_id_num])
-
-		if entry then
-			result_data[app_id_str] = entry
-		end
-	end
+	local result_data = cache.get_batch(args.stream_id, args.app_ids)
 
 	return json.encode({
 		success = true,
@@ -45,7 +33,7 @@ function AppendToCache(args_json)
 		return json.encode({ success = false, error = "Invalid arguments or malformed JSON string" })
 	end
 
-	local saved = cache.save_stream(args.stream_id, args.new_data)
+	local saved = cache.save_batch(args.stream_id, args.new_data)
 	if saved then
 		return json.encode({ success = true })
 	else
@@ -112,6 +100,7 @@ function GetAvailableStreams()
 			id = stream.id,
 			name = stream.name,
 			tag = stream.tag or stream.name,
+			delay = stream.delay or 500,
 			metrics = safe_metrics,
 		})
 	end

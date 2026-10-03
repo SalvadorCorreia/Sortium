@@ -5,18 +5,20 @@ import { logger } from './logger';
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
 const fetchStreamData = callable<[{ args_json: string }], string>('FetchStreamData');
+const getAvailableStreams = callable<[], string>('GetAvailableStreams');
 
 declare global {
 	var appStore: any;
 }
 
+export type AppState = 'MISSING' | 'BATCHING' | 'QUEUED' | 'FETCHING' | 'CACHED' | 'ERROR_CACHE';
+
 export interface CacheEntry {
+	state: AppState;
 	data: any;
 	fetchedAt: number;
-	error?: boolean;
+	failCount: number;
 }
-
-type StreamState = 'HEALTHY' | 'RATE_LIMITED';
 
 class QueueService {
 	private cache: Record<string, Record<string, CacheEntry>> = {};
@@ -24,15 +26,32 @@ class QueueService {
 	private highPriority: Record<string, string[]> = {};
 	private lowPriority: Record<string, string[]> = {};
 
-	private streamStates: Record<string, StreamState> = {};
-	private suspendedPool: Record<string, number[]> = {};
-	private failCounts: Record<string, Record<string, number>> = {};
-
+	private isRateLimited: Record<string, boolean> = {};
 	private processingStreams: Set<string> = new Set();
 	private recoveringStreams: Set<string> = new Set();
-	private listeners: Set<() => void> = new Set();
 
+	private pendingSaves: Record<string, Record<string, any>> = {};
+	private saveTimers: Record<string, any> = {};
+
+	private streamDelays: Record<string, number> | null = null;
+	private listeners: Set<() => void> = new Set();
 	private isDismounted = false;
+
+	private async getDelay(streamId: string): Promise<number> {
+		if (!this.streamDelays) {
+			this.streamDelays = {};
+			try {
+				const raw = await getAvailableStreams();
+				const res = JSON.parse(raw);
+				if (res.success && res.data) {
+					res.data.forEach((s: any) => { this.streamDelays![s.id] = s.delay; });
+				}
+			} catch (e) {
+				return 500;
+			}
+		}
+		return this.streamDelays[streamId] || 500;
+	}
 
 	public subscribe(fn: () => void): () => void {
 		this.listeners.add(fn);
@@ -45,284 +64,319 @@ class QueueService {
 		this.listeners.forEach((fn) => fn());
 	}
 
+	public dismount() {
+		this.isDismounted = true;
+	}
+
+	public getStreamState(streamId: string): string {
+		return this.isRateLimited[streamId] ? 'RATE_LIMITED' : 'HEALTHY';
+	}
+
+	public getEntryState(streamId: string, appId: number): string {
+		return this.cache[streamId]?.[appId.toString()]?.state || 'MISSING';
+	}
+
+	private getEntry(streamId: string, appId: string): CacheEntry {
+		if (!this.cache[streamId]) this.cache[streamId] = {};
+		if (!this.cache[streamId][appId]) {
+			this.cache[streamId][appId] = { state: 'MISSING', data: null, fetchedAt: 0, failCount: 0 };
+		}
+		return this.cache[streamId][appId];
+	}
+
 	public getCachedData(streamId: string, appId: number): any {
-		return this.cache[streamId]?.[appId.toString()]?.data || null;
+		const entry = this.cache[streamId]?.[appId.toString()];
+		return entry?.state === 'CACHED' ? entry.data : null;
 	}
 
 	public hasCacheEntry(streamId: string, appId: number): boolean {
-		return this.cache[streamId]?.[appId.toString()] !== undefined;
+		const state = this.cache[streamId]?.[appId.toString()]?.state;
+		return state === 'CACHED' || state === 'ERROR_CACHE';
 	}
 
-	public getStreamState(streamId: string): StreamState {
-		return this.streamStates[streamId] || 'HEALTHY';
+	private batchSave(streamId: string, appId: string, payload: any) {
+		if (!this.pendingSaves[streamId]) this.pendingSaves[streamId] = {};
+		this.pendingSaves[streamId][appId] = payload;
+
+		if (Object.keys(this.pendingSaves[streamId]).length >= 100) {
+			this.flushSaves(streamId);
+		} else if (!this.saveTimers[streamId]) {
+			this.saveTimers[streamId] = setTimeout(() => this.flushSaves(streamId), 1000);
+		}
 	}
 
-	public dismount() {
-		this.isDismounted = true;
+	private async flushSaves(streamId: string) {
+		if (this.saveTimers[streamId]) {
+			clearTimeout(this.saveTimers[streamId]);
+			this.saveTimers[streamId] = null;
+		}
+		const dataToSave = this.pendingSaves[streamId];
+		if (!dataToSave || Object.keys(dataToSave).length === 0) return;
+
+		this.pendingSaves[streamId] = {};
+
+		try {
+			const payload = { stream_id: streamId, new_data: dataToSave };
+			await appendToCache({ args_json: JSON.stringify(payload) });
+		} catch (e) {
+			logger.error(`QueueService [${streamId}]: Failed to flush saves to Lua`, e);
+		}
 	}
 
 	public async enqueue(appIds: number[], metric: string) {
 		const streamId = metric.split('_')[0] || 'hltb';
 		const stringIds = appIds.map(String);
 
-		if (!this.cache[streamId]) {
-			this.cache[streamId] = {};
-		}
-		if (!this.highPriority[streamId]) {
-			this.highPriority[streamId] = [];
-		}
-		if (!this.lowPriority[streamId]) {
-			this.lowPriority[streamId] = [];
+		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
+		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
+
+		const toBatchLoad: string[] = [];
+		const settings = getSettings();
+		const now = Math.floor(Date.now() / 1000);
+		const softLimit = (settings.softCacheDays || 4) * 24 * 60 * 60;
+		const hardLimit = (settings.hardCacheDays || 7) * 24 * 60 * 60;
+
+		for (const id of stringIds) {
+			const entry = this.getEntry(streamId, id);
+			
+			// State Lock: Drop duplicate requests
+			if (entry.state === 'QUEUED' || entry.state === 'FETCHING' || entry.state === 'BATCHING') {
+				continue;
+			}
+
+			const age = entry.fetchedAt ? now - entry.fetchedAt : Infinity;
+
+			if (entry.fetchedAt === 0 && entry.state !== 'ERROR_CACHE') {
+				entry.state = 'BATCHING';
+				toBatchLoad.push(id);
+			} else {
+				if (entry.state === 'ERROR_CACHE') {
+					if (age > 24 * 60 * 60) this.pushToQueue(streamId, id, true);
+				} else if (age > hardLimit) {
+					this.pushToQueue(streamId, id, true);
+				} else if (age > softLimit) {
+					this.pushToQueue(streamId, id, false);
+				}
+			}
 		}
 
-		const missingFromMem = stringIds.filter((id) => !this.cache[streamId]![id]);
-		if (missingFromMem.length > 0) {
+		// Paginated IPC Load
+		for (let i = 0; i < toBatchLoad.length; i += 100) {
+			const batch = toBatchLoad.slice(i, i + 100);
 			try {
-				const payload = { stream_id: streamId, app_ids: missingFromMem };
+				const payload = { stream_id: streamId, app_ids: batch };
 				const raw = await getCacheBatch({ args_json: JSON.stringify(payload) });
 				const res = JSON.parse(raw);
 
 				if (res.success && res.data) {
-					for (const [id, entry] of Object.entries(res.data)) {
-						let fetchedAt = (entry as any).fetchedAt;
-						if (!fetchedAt && (entry as any).expiry) {
-							fetchedAt = (entry as any).expiry - 7 * 24 * 60 * 60;
+					for (const id of batch) {
+						const diskEntry = res.data[id];
+						const memEntry = this.getEntry(streamId, id);
+
+						if (diskEntry) {
+							memEntry.data = diskEntry.data;
+							memEntry.fetchedAt = diskEntry.fetchedAt || 0;
+							memEntry.state = diskEntry.error ? 'ERROR_CACHE' : 'CACHED';
+							memEntry.failCount = 0;
+
+							const age = now - memEntry.fetchedAt;
+							const limit = memEntry.state === 'ERROR_CACHE' ? 24 * 60 * 60 : hardLimit;
+
+							if (age > limit) {
+								this.pushToQueue(streamId, id, true);
+							} else if (memEntry.state === 'CACHED' && age > softLimit) {
+								this.pushToQueue(streamId, id, false);
+							}
+						} else {
+							this.pushToQueue(streamId, id, true);
 						}
-						this.cache[streamId]![id] = {
-							data: (entry as any).data,
-							fetchedAt: fetchedAt || 0,
-							error: (entry as any).error,
-						};
 					}
 				}
 			} catch (e) {
-				logger.error('QueueService: Failed to read backend cache', e);
+				logger.error(`QueueService [${streamId}]: GetCacheBatch failed`, e);
+				for (const id of batch) this.pushToQueue(streamId, id, true);
 			}
-		}
-
-		const settings = getSettings();
-		const now = Math.floor(Date.now() / 1000);
-		const softLimit = (settings.softCacheDays || 4) * 24 * 60 * 60;
-		const defaultHardLimit = (settings.hardCacheDays || 7) * 24 * 60 * 60;
-
-		let addedHigh = 0;
-		let addedLow = 0;
-
-		for (const id of stringIds) {
-			const entry = this.cache[streamId]?.[id];
-			const age = entry ? now - entry.fetchedAt : Infinity;
-			const target = id;
-
-			const hardLimit = entry?.error ? 24 * 60 * 60 : defaultHardLimit;
-
-			if ((entry?.error && age > hardLimit) || !entry || age > hardLimit) {
-				if (!this.highPriority[streamId]!.includes(target)) {
-					this.highPriority[streamId] = this.highPriority[streamId]!.filter((item) => item !== target);
-					this.highPriority[streamId]!.push(target);
-					addedHigh++;
-				}
-			} else if (age > softLimit) {
-				if (!this.lowPriority[streamId]!.includes(target) && !this.highPriority[streamId]!.includes(target)) {
-					this.lowPriority[streamId]!.push(target);
-					addedLow++;
-				}
-			}
-		}
-
-		if (addedHigh > 0 || addedLow > 0) {
-			logger.info(`QueueService [${streamId}]: Enqueued ${addedHigh} high priority, ${addedLow} low priority items.`);
 		}
 
 		this.notify();
-		this.startProcessing(streamId);
+		if (!this.isRateLimited[streamId]) {
+			this.startProcessing(streamId);
+		}
+	}
+
+	private pushToQueue(streamId: string, appId: string, isHigh: boolean) {
+		const entry = this.getEntry(streamId, appId);
+		entry.state = 'QUEUED';
+
+		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
+		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
+
+		if (isHigh) {
+			this.highPriority[streamId] = this.highPriority[streamId]!.filter((id) => id !== appId);
+			this.highPriority[streamId]!.push(appId);
+		} else {
+			this.lowPriority[streamId] = this.lowPriority[streamId]!.filter((id) => id !== appId);
+			this.lowPriority[streamId]!.push(appId);
+		}
 	}
 
 	private async startProcessing(streamId: string) {
-		if (this.processingStreams.has(streamId)) return;
+		if (this.processingStreams.has(streamId) || this.isRateLimited[streamId]) return;
 		this.processingStreams.add(streamId);
 
-		logger.info(`QueueService [${streamId}]: Starting background queue processing.`);
+		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
+		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
 
-		while ((this.highPriority[streamId] && this.highPriority[streamId].length > 0) || (this.lowPriority[streamId] && this.lowPriority[streamId].length > 0)) {
+		while (this.highPriority[streamId]!.length > 0 || this.lowPriority[streamId]!.length > 0) {
 			if (this.isDismounted) break;
 
 			let appId: string | undefined;
-
-			if (this.highPriority[streamId] && this.highPriority[streamId].length > 0) {
-				appId = this.highPriority[streamId].pop();
-			} else if (this.lowPriority[streamId] && this.lowPriority[streamId].length > 0) {
-				appId = this.lowPriority[streamId].shift();
+			if (this.highPriority[streamId]!.length > 0) {
+				appId = this.highPriority[streamId]!.pop();
+			} else if (this.lowPriority[streamId]!.length > 0) {
+				appId = this.lowPriority[streamId]!.shift();
 			}
 
 			if (!appId) continue;
 
-			if (this.streamStates[streamId] === 'RATE_LIMITED') {
-				if (!this.suspendedPool[streamId]) this.suspendedPool[streamId] = [];
-				const numAppId = Number(appId);
-				if (!this.suspendedPool[streamId].includes(numAppId)) {
-					this.suspendedPool[streamId].push(numAppId);
-				}
-				break;
-			}
+			const entry = this.getEntry(streamId, appId);
+			entry.state = 'FETCHING';
 
 			try {
 				const payload = { stream_id: streamId, app_id: appId };
 				const raw = await fetchStreamData({ args_json: JSON.stringify(payload) });
 				const res = JSON.parse(raw);
 
+				if (this.isDismounted) break;
+
 				if (res.success && res.result && !res.result.error) {
-					const now = Math.floor(Date.now() / 1000);
-					const newEntry = { data: res.result.data, fetchedAt: now, error: false };
+					entry.state = 'CACHED';
+					entry.data = res.result.data;
+					entry.fetchedAt = Math.floor(Date.now() / 1000);
+					entry.failCount = 0;
 
-					if (!this.cache[streamId]) this.cache[streamId] = {};
-					this.cache[streamId]![appId] = newEntry;
-
-					if (!this.failCounts[streamId]) this.failCounts[streamId] = {};
-					delete this.failCounts[streamId][appId];
-
-					try {
-						const savePayload = { stream_id: streamId, new_data: { [appId]: newEntry } };
-						await appendToCache({ args_json: JSON.stringify(savePayload) });
-					} catch (e) {
-						logger.error(`QueueService [${streamId}]: Failed to append to Lua cache`, e);
-					}
-
-					logger.info(
-						`QueueService [${streamId}]: Fetched ${appId}. Remaining tasks: ${(this.highPriority[streamId]?.length || 0) + (this.lowPriority[streamId]?.length || 0)}`,
-					);
-					this.notify();
+					this.batchSave(streamId, appId, { data: entry.data, fetchedAt: entry.fetchedAt, error: false });
 				} else {
 					const status = Number(res?.result?.status) || 0;
-					const errorReason = String(res.error || res.result?.details || 'Unknown backend error');
-					const isRateLimit = status === 429 || status === 503;
 
-					logger.warn(`QueueService [${streamId}]: Fetch error on AppID ${appId} (Status: ${status}). Reason: ${errorReason}.`);
-
-					if (isRateLimit) {
-						this.handleRateLimit(streamId, Number(appId));
+					if (status === 429 || status === 503) {
+						entry.state = 'QUEUED';
+						this.highPriority[streamId]!.push(appId);
+						this.isRateLimited[streamId] = true;
+							this.notify();
+						this.startRecoveryLoop(streamId);
+						break;
 					} else {
-						this.handleTransientError(streamId, appId);
+						entry.failCount += 1;
+						if (entry.failCount >= 3) {
+							entry.state = 'ERROR_CACHE';
+							entry.data = null;
+							entry.fetchedAt = Math.floor(Date.now() / 1000);
+							this.batchSave(streamId, appId, { data: null, fetchedAt: entry.fetchedAt, error: true });
+						} else {
+							entry.state = 'QUEUED';
+							this.lowPriority[streamId]!.push(appId);
+						}
 					}
 				}
 			} catch (error) {
-				logger.error(`QueueService [${streamId}]: IPC failure fetching AppID ${appId}.`, error);
-				this.handleTransientError(streamId, appId);
+				if (this.isDismounted) break;
+				entry.failCount += 1;
+				if (entry.failCount >= 3) {
+					entry.state = 'ERROR_CACHE';
+					entry.data = null;
+					entry.fetchedAt = Math.floor(Date.now() / 1000);
+					this.batchSave(streamId, appId, { data: null, fetchedAt: entry.fetchedAt, error: true });
+				} else {
+					entry.state = 'QUEUED';
+					this.lowPriority[streamId]!.push(appId);
+				}
 			}
 
-			await new Promise((r) => setTimeout(r, 500));
-		}
-
-		logger.info(`QueueService [${streamId}]: Processing complete or interrupted. Queue halted.`);
-		this.processingStreams.delete(streamId);
-	}
-
-	private handleTransientError(streamId: string, appId: string) {
-		if (!this.failCounts[streamId]) {
-			this.failCounts[streamId] = {};
-		}
-		this.failCounts[streamId][appId] = (this.failCounts[streamId][appId] || 0) + 1;
-		const fails = this.failCounts[streamId][appId];
-
-		if (fails >= 3) {
-			logger.warn(`QueueService [${streamId}]: AppID ${appId} reached 3 failures. Applying negative cache.`);
-			const now = Math.floor(Date.now() / 1000);
-			const negativeEntry: CacheEntry = { data: null, fetchedAt: now, error: true };
-
-			if (!this.cache[streamId]) this.cache[streamId] = {};
-			this.cache[streamId][appId] = negativeEntry;
-
-			try {
-				const savePayload = { stream_id: streamId, new_data: { [appId]: negativeEntry } };
-				appendToCache({ args_json: JSON.stringify(savePayload) });
-			} catch (e) {
-				logger.error(`QueueService [${streamId}]: Failed to save negative cache to Lua`, e);
-			}
-
-			delete this.failCounts[streamId][appId];
 			this.notify();
-		} else {
-			if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
-			this.lowPriority[streamId].push(appId);
-		}
-	}
 
-	private handleRateLimit(streamId: string, appId: number) {
-		this.streamStates[streamId] = 'RATE_LIMITED';
-		if (!this.suspendedPool[streamId]) this.suspendedPool[streamId] = [];
-		if (!this.suspendedPool[streamId].includes(appId)) {
-			this.suspendedPool[streamId].push(appId);
+			const delayMs = await this.getDelay(streamId);
+			await new Promise((r) => setTimeout(r, delayMs));
+			if (this.isDismounted) break;
 		}
-		this.notify();
-		this.startRecoveryLoop(streamId);
+
+		this.processingStreams.delete(streamId);
 	}
 
 	private async startRecoveryLoop(streamId: string) {
 		if (this.recoveringStreams.has(streamId)) return;
 		this.recoveringStreams.add(streamId);
 
-		logger.info(`QueueService [${streamId}]: Starting background recovery subsystem.`);
+		let sleepTime = 300;
+		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
+		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
 
-		while (this.streamStates[streamId] === 'RATE_LIMITED') {
+		while (this.isRateLimited[streamId]) {
 			if (this.isDismounted) break;
 
-			await new Promise((r) => setTimeout(r, 60000));
-
+			await new Promise((r) => setTimeout(r, sleepTime * 1000));
 			if (this.isDismounted) break;
 
-			const pool = this.suspendedPool[streamId] || [];
-			if (pool.length === 0) {
-				this.streamStates[streamId] = 'HEALTHY';
-				this.notify();
+			if (this.highPriority[streamId]!.length === 0 && this.lowPriority[streamId]!.length === 0) {
+				this.isRateLimited[streamId] = false;
 				break;
 			}
 
-			const testAppId = pool[0];
-			if (testAppId === undefined) continue;
+			const appId = this.highPriority[streamId]!.pop();
+			if (!appId) continue;
 
-			logger.info(`QueueService [${streamId}]: Testing recovery with AppID ${testAppId}.`);
+			const entry = this.getEntry(streamId, appId);
+			entry.state = 'FETCHING';
 
 			try {
-				const payload = { stream_id: streamId, app_id: testAppId.toString() };
+				const payload = { stream_id: streamId, app_id: appId };
 				const raw = await fetchStreamData({ args_json: JSON.stringify(payload) });
 				const res = JSON.parse(raw);
 
+				if (this.isDismounted) break;
+
 				if (res.success && res.result && !res.result.error) {
-					logger.info(`QueueService [${streamId}]: Stream recovered. Restoring suspended items.`);
-					this.streamStates[streamId] = 'HEALTHY';
+					entry.state = 'CACHED';
+					entry.data = res.result.data;
+					entry.fetchedAt = Math.floor(Date.now() / 1000);
+					entry.failCount = 0;
+					this.batchSave(streamId, appId, { data: entry.data, fetchedAt: entry.fetchedAt, error: false });
 
-					const now = Math.floor(Date.now() / 1000);
-					const newEntry = { data: res.result.data, fetchedAt: now, error: false };
-
-					if (!this.cache[streamId]) this.cache[streamId] = {};
-					this.cache[streamId][testAppId.toString()] = newEntry;
-
-					try {
-						const savePayload = { stream_id: streamId, new_data: { [testAppId]: newEntry } };
-						await appendToCache({ args_json: JSON.stringify(savePayload) });
-					} catch (e) {
-						logger.error(`QueueService [${streamId}]: Failed to append recovery data to Lua cache`, e);
-					}
-
-					pool.shift();
-					if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
-					for (const id of pool) {
-						this.highPriority[streamId].push(id.toString());
-					}
-
-					this.suspendedPool[streamId] = [];
+					this.isRateLimited[streamId] = false;
 					this.notify();
 					this.startProcessing(streamId);
 					break;
 				} else {
 					const status = Number(res?.result?.status) || 0;
-					logger.warn(`QueueService [${streamId}]: Stream test failed during recovery (Status: ${status}).`);
+					if (status === 429 || status === 503) {
+						entry.state = 'QUEUED';
+						this.highPriority[streamId]!.push(appId);
+						sleepTime = Math.min(sleepTime * 2, 1200);
+					} else {
+						entry.failCount += 1;
+						if (entry.failCount >= 3) {
+							entry.state = 'ERROR_CACHE';
+							entry.data = null;
+							entry.fetchedAt = Math.floor(Date.now() / 1000);
+							this.batchSave(streamId, appId, { data: null, fetchedAt: entry.fetchedAt, error: true });
+						} else {
+							entry.state = 'QUEUED';
+							this.lowPriority[streamId]!.push(appId);
+						}
+						this.isRateLimited[streamId] = false;
+						this.notify();
+						this.startProcessing(streamId);
+						break;
+					}
 				}
-			} catch (error) {
-				logger.warn(`QueueService [${streamId}]: Stream test failed during recovery.`);
+			} catch (e) {
+				if (this.isDismounted) break;
+				entry.state = 'QUEUED';
+				this.highPriority[streamId]!.push(appId);
+				sleepTime = Math.min(sleepTime * 2, 1200);
 			}
 		}
 
-		logger.info(`QueueService [${streamId}]: Recovery complete or interrupted.`);
 		this.recoveringStreams.delete(streamId);
 	}
 
@@ -333,14 +387,10 @@ class QueueService {
 					.map(Number)
 					.filter((id) => !isNaN(id));
 
-				logger.info(`Force Sync requested. Evaluating ${allAppIds.length} games for metric: ${metric}`);
-
 				this.enqueue(allAppIds, metric);
-			} else {
-				logger.warn('appStore is not available. Cannot force sync library.');
 			}
 		} catch (error) {
-			logger.error('Failed to trigger force sync:', error);
+			logger.error('Failed to force sync:', error);
 		}
 	}
 }

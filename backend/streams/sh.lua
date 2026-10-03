@@ -7,6 +7,7 @@ local M = {}
 M.id = "sh"
 M.name = "Steam Hunters"
 M.tag = "SH"
+M.delay = 500
 
 M.metrics = {
 	{ id = "sh_median", name = "Median Time", type = "time", defaultDir = "asc" },

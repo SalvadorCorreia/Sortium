@@ -1,6 +1,6 @@
 {
 	"name": "sortium",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Advanced library sorting for the Steam client based on global completion metrics.",
 	"author": "Salvador",
 	"license": "MIT",

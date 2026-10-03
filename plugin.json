@@ -3,6 +3,6 @@
 	"common_name": "Sortium",
 	"description": "Advanced library sorting for the Steam client based on global completion metrics.",
 	"author": "Salvador",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"backendType": "lua"
 }
