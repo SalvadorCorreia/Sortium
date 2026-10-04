@@ -1,5 +1,9 @@
 import { getAvailableStreams } from '../services/settings';
 
+/**
+ * Resolves a specific metric value from a raw cache data object.
+ * Returns the numeric value if found, handling fuzzy key matching, or null if missing.
+ */
 export function getMetricValue(metric: string, data: any): number | null {
 	if (!data) return null;
 
@@ -33,6 +37,10 @@ export function getMetricValue(metric: string, data: any): number | null {
 	return null;
 }
 
+/**
+ * Sorts an array of AppIDs based on a specified metric and direction.
+ * Consumes a dataResolver callback to fetch cached data and returns a new sorted array.
+ */
 export function sortApps(appIds: number[], metricId: string, dataResolver: (appId: number) => any, direction: 'asc' | 'desc' = 'asc'): number[] {
 	const getSortValue = (appId: number) => {
 		const data = dataResolver(appId);
@@ -52,6 +60,10 @@ export function sortApps(appIds: number[], metricId: string, dataResolver: (appI
 	});
 }
 
+/**
+ * Formats a raw metric number into a human-readable UI string (e.g., "12 hrs" or "85%").
+ * Returns fallback text if the data is flagged as missing or invalid.
+ */
 export function formatMetricValue(value: number | null, metricId: string, isMissing: boolean): string {
 	if (isMissing) return 'Loading...';
 	if (value === null || value === undefined || value === Infinity || value === -Infinity) return 'No data';
