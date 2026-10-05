@@ -1,6 +1,10 @@
 import { callable } from '@steambrew/client';
 import { logger, setLoggingEnabled } from './logger';
 
+/**
+ * Defines a specific sortable metric (e.g., Main Story time or User Rating).
+ * Used by streams to define what data they expose to the frontend.
+ */
 export interface Metric {
 	id: string;
 	name: string;
@@ -8,6 +12,10 @@ export interface Metric {
 	defaultDir: 'asc' | 'desc';
 }
 
+/**
+ * Represents a data source stream (e.g., HowLongToBeat, SteamDB).
+ * Contains metadata and a list of metrics that this stream provides.
+ */
 export interface DataStream {
 	id: string;
 	name: string;
@@ -15,6 +23,10 @@ export interface DataStream {
 	metrics: Metric[];
 }
 
+/**
+ * Defines the user-configurable settings for the Sortium plugin.
+ * Persisted to disk via the backend and dictates UI behavior and caching limits.
+ */
 export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	enabledMetrics: Record<string, boolean>;
@@ -57,6 +69,10 @@ const ClearCacheRpc = callable<[], string>('ClearCache');
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
 let cachedStreams: DataStream[] = [];
 
+/**
+ * Fetches the available streams and user settings from the Lua backend via IPC.
+ * Initializes the in-memory cache and configures the logger state.
+ */
 export async function initSettings(): Promise<void> {
 	try {
 		const streamsJson = await GetAvailableStreamsRpc();
@@ -84,14 +100,25 @@ export async function initSettings(): Promise<void> {
 	}
 }
 
+/**
+ * Retrieves the currently active user settings from the in-memory cache.
+ * Does not perform any network or IPC calls.
+ */
 export function getSettings(): PluginSettings {
 	return cachedSettings;
 }
 
+/**
+ * Retrieves the list of available data streams loaded during initialization.
+ */
 export function getAvailableStreams(): DataStream[] {
 	return cachedStreams;
 }
 
+/**
+ * Finds and formats a display label for a given metric ID.
+ * Returns the stream tag and metric name (e.g., "[HLTB] Main Story"), or a fallback string.
+ */
 export function getMetricLabel(metricId: string): string {
 	for (const stream of cachedStreams) {
 		const metric = stream.metrics.find((m) => m.id === metricId);
@@ -102,6 +129,10 @@ export function getMetricLabel(metricId: string): string {
 	return 'Sortium';
 }
 
+/**
+ * Saves updated plugin settings to the backend via IPC and updates the memory cache.
+ * Returns true if the disk write succeeded, or false if it failed.
+ */
 export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	const previousSettings = cachedSettings;
 	cachedSettings = settings;
@@ -132,6 +163,10 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	}
 }
 
+/**
+ * Triggers a complete wipe of the backend cache directory via IPC.
+ * Used to free up disk space or fix corrupted local data.
+ */
 export async function clearCache(): Promise<boolean> {
 	try {
 		const responseJson = await ClearCacheRpc();
