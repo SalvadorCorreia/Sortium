@@ -11,8 +11,15 @@ declare global {
 	var appStore: any;
 }
 
+/**
+ * Represents the current lifecycle state of a game's metric data within the memory cache.
+ */
 export type AppState = 'MISSING' | 'BATCHING' | 'QUEUED' | 'FETCHING' | 'CACHED' | 'ERROR_CACHE';
 
+/**
+ * An individual memory cache record for a specific game and data stream.
+ * Tracks the data payload, staleness, and failure counts.
+ */
 export interface CacheEntry {
 	state: AppState;
 	data: any;
@@ -395,4 +402,8 @@ class QueueService {
 	}
 }
 
+/**
+ * The global singleton instance of the QueueService.
+ * Consumed by UI components to queue IPC data fetches and read cached metrics.
+ */
 export const queueService = new QueueService();
