@@ -16,6 +16,9 @@ M.metrics = {
 	{ id = "hltb_all_styles", name = "All Styles", type = "time", defaultDir = "asc" },
 }
 
+--- Fetches completion time metrics for a given game from HowLongToBeat.
+--- Consumes a Steam AppID and returns a table containing the parsed times or an error state.
+--- Performs a blocking HTTP request to the Augmented Steam API.
 function M.fetch(app_id)
 	local numeric_id = tonumber(app_id)
 	if not numeric_id then
