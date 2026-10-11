@@ -17,6 +17,9 @@ M.metrics = {
 	{ id = "sh_achievements", name = "Achievements", type = "count", defaultDir = "desc" },
 }
 
+--- Fetches completion times, points, and ratings for a given game from SteamHunters.
+--- Consumes a Steam AppID and returns a table containing the parsed stats or an error state.
+--- Performs a blocking HTTP request to the SteamHunters API.
 function M.fetch(app_id)
 	local numeric_id = tonumber(app_id)
 	if not numeric_id then
