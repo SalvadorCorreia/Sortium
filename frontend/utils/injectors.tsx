@@ -8,6 +8,11 @@ import { logger } from '../services/logger';
 
 const injectedRoots = new Map<HTMLElement, any>();
 
+/**
+ * Unmounts all React roots created by Sortium injectors and removes their container DOM nodes.
+ * Takes no arguments and returns nothing.
+ * Cleans up injected UI elements when tearing down or resetting views.
+ */
 export function cleanupInjectors() {
 	for (const [node, root] of injectedRoots.entries()) {
 		try {
@@ -20,6 +25,11 @@ export function cleanupInjectors() {
 	injectedRoots.clear();
 }
 
+/**
+ * Injects Sortium dropdown menus into showcase section headers on the Steam library home view.
+ * Consumes the Steam popup window object and returns a promise resolving once mounted.
+ * Mounts interactive React dropdown roots into existing ShowcaseHeader DOM elements.
+ */
 export async function injectHomeDropdowns(popup: any) {
 	const headers = await waitForAllElements(`div.${findModule((e) => e.ShowcaseHeader).ShowcaseHeader}`, popup.m_popup.document);
 
@@ -43,6 +53,11 @@ export async function injectHomeDropdowns(popup: any) {
 	});
 }
 
+/**
+ * Injects the Sortium view toggle button into the Steam collection header.
+ * Consumes the Steam popup window object and returns a promise resolving once mounted.
+ * Removes obsolete toggle elements if present and mounts a new SortiumToggle component into the header.
+ */
 export async function injectCollectionToggle(popup: any) {
 	const headerModule = findModule((m) => m.Header && m.CollectionName && m.DynamicCollectionLabelAndButton);
 
@@ -71,6 +86,11 @@ export async function injectCollectionToggle(popup: any) {
 	headerDiv.insertBefore(sortiumToggle, headerDiv.firstChild);
 }
 
+/**
+ * Injects the custom Sortium grid container adjacent to Steam's native collection grid.
+ * Consumes the Steam popup window object and returns a promise resolving once mounted.
+ * Inserts a dedicated DOM element rendering SortiumGrid into the collection grid parent container.
+ */
 export async function injectSortiumGrid(popup: any) {
 	const gridModule = findModule((m) => m.GridWithControls);
 
