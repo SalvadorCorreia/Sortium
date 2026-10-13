@@ -27,6 +27,27 @@ export interface CacheEntry {
 	failCount: number;
 }
 
+/**
+ * Summary of a full library sync operation across one or more data streams.
+ */
+export interface LibrarySyncReport {
+	totalGames: number;
+	totalQueued: number;
+	totalPending: number;
+	streamResults: Record<string, { queued: number; pending: number }>;
+}
+
+/**
+ * Real-time progress snapshot of active queue processing across streams.
+ */
+export interface SyncProgressReport {
+	isRunning: boolean;
+	isRateLimited: boolean;
+	totalPending: number;
+	totalInitial: number;
+	streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean }>;
+}
+
 class QueueService {
 	private cache: Record<string, Record<string, CacheEntry>> = {};
 
@@ -75,10 +96,16 @@ class QueueService {
 		this.isDismounted = true;
 	}
 
+	/**
+	 * Returns the rate limit status for a given stream ('RATE_LIMITED' or 'HEALTHY').
+	 */
 	public getStreamState(streamId: string): string {
 		return this.isRateLimited[streamId] ? 'RATE_LIMITED' : 'HEALTHY';
 	}
 
+	/**
+	 * Returns the cache lifecycle state for a specific game within a stream.
+	 */
 	public getEntryState(streamId: string, appId: number): string {
 		return this.cache[streamId]?.[appId.toString()]?.state || 'MISSING';
 	}
@@ -91,11 +118,17 @@ class QueueService {
 		return this.cache[streamId][appId];
 	}
 
+	/**
+	 * Returns cached data for a game if its state is CACHED, or null otherwise.
+	 */
 	public getCachedData(streamId: string, appId: number): any {
 		const entry = this.cache[streamId]?.[appId.toString()];
 		return entry?.state === 'CACHED' ? entry.data : null;
 	}
 
+	/**
+	 * Checks whether a game has a resolved cache entry (either valid data or error cache).
+	 */
 	public hasCacheEntry(streamId: string, appId: number): boolean {
 		const state = this.cache[streamId]?.[appId.toString()]?.state;
 		return state === 'CACHED' || state === 'ERROR_CACHE';
@@ -130,13 +163,18 @@ class QueueService {
 		}
 	}
 
-	public async enqueue(appIds: number[], metric: string) {
-		const streamId = metric.split('_')[0] || 'hltb';
+	/**
+	 * Enqueues an array of AppIDs for batch loading and background fetching for a stream.
+	 * Returns the count of newly queued games and total games evaluated.
+	 */
+	public async enqueue(appIds: number[], streamOrMetric: string): Promise<{ queued: number; total: number }> {
+		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
 		const stringIds = appIds.map(String);
 
 		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
 		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
 
+		let queuedCount = 0;
 		const toBatchLoad: string[] = [];
 		const settings = getSettings();
 		const now = Math.floor(Date.now() / 1000);
@@ -158,11 +196,16 @@ class QueueService {
 				toBatchLoad.push(id);
 			} else {
 				if (entry.state === 'ERROR_CACHE') {
-					if (age > 24 * 60 * 60) this.pushToQueue(streamId, id, true);
+					if (age > 24 * 60 * 60) {
+						this.pushToQueue(streamId, id, true);
+						queuedCount++;
+					}
 				} else if (age > hardLimit) {
 					this.pushToQueue(streamId, id, true);
+					queuedCount++;
 				} else if (age > softLimit) {
 					this.pushToQueue(streamId, id, false);
+					queuedCount++;
 				}
 			}
 		}
@@ -191,17 +234,23 @@ class QueueService {
 
 							if (age > limit) {
 								this.pushToQueue(streamId, id, true);
+								queuedCount++;
 							} else if (memEntry.state === 'CACHED' && age > softLimit) {
 								this.pushToQueue(streamId, id, false);
+								queuedCount++;
 							}
 						} else {
 							this.pushToQueue(streamId, id, true);
+							queuedCount++;
 						}
 					}
 				}
 			} catch (e) {
 				logger.error(`QueueService [${streamId}]: GetCacheBatch failed`, e);
-				for (const id of batch) this.pushToQueue(streamId, id, true);
+				for (const id of batch) {
+					this.pushToQueue(streamId, id, true);
+					queuedCount++;
+				}
 			}
 		}
 
@@ -209,6 +258,8 @@ class QueueService {
 		if (!this.isRateLimited[streamId]) {
 			this.startProcessing(streamId);
 		}
+
+		return { queued: queuedCount, total: stringIds.length };
 	}
 
 	private pushToQueue(streamId: string, appId: string, isHigh: boolean) {
@@ -270,7 +321,7 @@ class QueueService {
 						entry.state = 'QUEUED';
 						this.highPriority[streamId]!.push(appId);
 						this.isRateLimited[streamId] = true;
-							this.notify();
+						this.notify();
 						this.startRecoveryLoop(streamId);
 						break;
 					} else {
@@ -387,18 +438,99 @@ class QueueService {
 		this.recoveringStreams.delete(streamId);
 	}
 
-	public forceSyncLibrary(metric: string) {
-		try {
-			if (typeof appStore !== 'undefined' && appStore.m_mapApps) {
-				const allAppIds = Array.from(appStore.m_mapApps.keys())
-					.map(Number)
-					.filter((id) => !isNaN(id));
+	/**
+	 * Returns the total count of items pending in high and low priority queues for a stream.
+	 */
+	public getPendingCount(streamId: string): number {
+		const high = this.highPriority[streamId]?.length || 0;
+		const low = this.lowPriority[streamId]?.length || 0;
+		return high + low;
+	}
 
-				this.enqueue(allAppIds, metric);
+	private syncTotals: Record<string, number> = {};
+
+	/**
+	 * Compiles real-time sync progress across requested streams, comparing pending against initial counts.
+	 */
+	public getSyncProgress(streamIds: string[]): SyncProgressReport {
+		let totalPending = 0;
+		let totalInitial = 0;
+		let isRunning = false;
+		let isRateLimited = false;
+		const streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean }> = {};
+
+		for (const streamId of streamIds) {
+			const pending = this.getPendingCount(streamId);
+			const initial = Math.max(this.syncTotals[streamId] || 0, pending);
+			const streamRunning = this.processingStreams.has(streamId) || this.recoveringStreams.has(streamId);
+			const streamLimited = !!this.isRateLimited[streamId];
+
+			if (pending > 0 || streamRunning) {
+				isRunning = true;
 			}
-		} catch (error) {
-			logger.error('Failed to force sync:', error);
+			if (streamLimited) {
+				isRateLimited = true;
+			}
+
+			if (pending === 0 && !streamRunning) {
+				this.syncTotals[streamId] = 0;
+			}
+
+			totalPending += pending;
+			totalInitial += initial;
+			streamProgress[streamId] = { pending, initial, isRateLimited: streamLimited };
 		}
+
+		return {
+			isRunning,
+			isRateLimited,
+			totalPending,
+			totalInitial,
+			streamProgress,
+		};
+	}
+
+	/**
+	 * Evaluates and enqueues all library games across specified streams, returning an aggregate sync report.
+	 */
+	public async syncLibrary(streamIds: string[]): Promise<LibrarySyncReport> {
+		if (typeof appStore === 'undefined' || !appStore.m_mapApps) {
+			logger.warn('QueueService: appStore is not available for library sync.');
+			return { totalGames: 0, totalQueued: 0, totalPending: 0, streamResults: {} };
+		}
+
+		const allAppIds = Array.from(appStore.m_mapApps.keys())
+			.map(Number)
+			.filter((id) => !isNaN(id));
+
+		const report: LibrarySyncReport = {
+			totalGames: allAppIds.length,
+			totalQueued: 0,
+			totalPending: 0,
+			streamResults: {},
+		};
+
+		logger.info(`QueueService: Library sync requested for streams [${streamIds.join(', ')}] across ${allAppIds.length} games.`);
+
+		for (const streamId of streamIds) {
+			const { queued } = await this.enqueue(allAppIds, streamId);
+			const pending = this.getPendingCount(streamId);
+			this.syncTotals[streamId] = pending;
+			report.streamResults[streamId] = { queued, pending };
+			report.totalQueued += queued;
+			report.totalPending += pending;
+		}
+
+		return report;
+	}
+
+	/**
+	 * Triggers a full library sync for a single stream or metric.
+	 */
+	public async forceSyncLibrary(streamOrMetric: string): Promise<{ queued: number; total: number }> {
+		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
+		const report = await this.syncLibrary([streamId]);
+		return { queued: report.totalQueued, total: report.totalGames };
 	}
 }
 

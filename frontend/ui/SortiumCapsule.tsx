@@ -2,9 +2,6 @@ import { findModule, Navigation } from '@steambrew/client';
 import { triggerCapsuleMenu } from './SortiumContextMenu';
 import { useState } from 'react';
 
-declare global {
-	var appStore: any;
-}
 
 interface SortiumCapsuleProps {
 	appId: number;
@@ -13,6 +10,10 @@ interface SortiumCapsuleProps {
 	imageSrcs: string[];
 }
 
+/**
+ * Presentational dumb component for rendering an individual game capsule in the library grid.
+ * Displays artwork, formatted metric text, and handles image error fallbacks and navigation.
+ */
 export function SortiumCapsule({ appId, metricText = 'No data', title, imageSrcs }: SortiumCapsuleProps) {
 	const glowModule = findModule((m) => m.LibraryImageBackgroundGlow) || {};
 	const layoutModule = findModule((m) => m.CapsuleVisible) || {};
