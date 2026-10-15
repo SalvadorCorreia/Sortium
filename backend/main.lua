@@ -46,7 +46,8 @@ function AppendToCache(args_json)
 end
 
 --- Handles IPC requests to delete all cached chunk files across all registered streams.
---- Returns a JSON success status after clearing chunked files on disk.
+--- Takes no arguments and returns a JSON success status.
+--- Removes all chunked cache files from the filesystem.
 function ClearCache()
 	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
 		cache.clear_stream(stream.id)
@@ -132,6 +133,7 @@ end
 
 --- Handles IPC requests to persist updated plugin settings to disk.
 --- Consumes a JSON string of settings, returning a JSON success or failure status.
+--- Overwrites the local settings.json file on disk.
 function SaveSettings(settings_json)
 	local ok, new_settings = pcall(json.decode, settings_json)
 	if not ok then
@@ -151,15 +153,21 @@ end
 -- Millennium Lifecycle Hooks
 -- ==============================================================================
 
+--- Lifecycle hook called by Millennium when the backend plugin initializes.
+--- Logs plugin readiness and invokes millennium.ready() to signal startup completion.
 local function on_load()
 	logger:info("Sortium plugin loaded with Millennium version " .. millennium.version())
 	millennium.ready()
 end
 
+--- Lifecycle hook called by Millennium when the plugin is unloaded.
+--- Logs backend plugin termination and teardown.
 local function on_unload()
 	logger:info("Sortium plugin unloaded")
 end
 
+--- Lifecycle hook called by Millennium once the Steam frontend UI is attached.
+--- Confirms backend connectivity with the frontend process.
 local function on_frontend_loaded()
 	logger:info("Sortium frontend loaded")
 end
