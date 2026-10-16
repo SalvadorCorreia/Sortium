@@ -1,6 +1,11 @@
 import { Menu, MenuItem, MenuGroup, showContextMenu, Dropdown, findModule, MenuSeparator } from '@steambrew/client';
 import { getAvailableStreams, getSettings, getMetricLabel } from '../services/settings';
 
+/**
+ * Opens a Steam context menu displaying enabled Sortium metric options grouped by data stream.
+ * Consumes the triggering UI event and a callback invoked when a metric is selected.
+ * Renders the context menu overlay at the event target location.
+ */
 export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metricId: string, direction: 'asc' | 'desc') => void) {
 	const streams = getAvailableStreams();
 	const settings = getSettings();
@@ -32,6 +37,11 @@ export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metr
 	showContextMenu(menuContent, e.currentTarget || undefined, { bOverlapHorizontal: true, bGrowToElementWidth: true });
 }
 
+/**
+ * Opens Steam's native game context menu for a specific library capsule.
+ * Consumes the triggering event and game AppID, providing play, collection, and management actions.
+ * Queries Steam stores and renders the context menu overlay.
+ */
 export function triggerCapsuleMenu(e: React.MouseEvent | Event, appId: number) {
 	const contextMenuModule = findModule((m) => m.ContextMenuMouseOverlay) || {};
 	const actionModule = findModule((m) => m.LeftListMaxPercentage) || {};
@@ -161,6 +171,11 @@ interface SortiumContextMenuButtonProps {
 	onSortChange: (metricId: string, direction: 'asc' | 'desc') => void;
 }
 
+/**
+ * Renders a sort menu button that triggers the Sortium category context menu.
+ * Consumes the active metric identifier and sort change handler props.
+ * Displays current metric label and handles click events to open the menu overlay.
+ */
 export function SortiumContextMenuButton({ activeMetric, onSortChange }: SortiumContextMenuButtonProps) {
 	const sortModule = findModule((m) => m.SortingDropDown && m.SortingDropDownLabel) || {};
 	const label = getMetricLabel(activeMetric);
