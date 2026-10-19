@@ -8,6 +8,11 @@ interface SortiumStreamStatusProps {
 	totalCount: number;
 }
 
+/**
+ * Displays live synchronization progress and rate-limiting status indicators for active metrics.
+ * Consumes the active metric ID, resolved cache count, and total game count.
+ * Renders loading spinner animations or rate-limited warnings when operations are pending.
+ */
 export function SortiumStreamStatus({ activeMetric, resolvedCount, totalCount }: SortiumStreamStatusProps) {
 	const iconButtonModule = findModule((m) => m.IconButton) || {};
 	const streamId = activeMetric.split('_')[0] || 'hltb';
