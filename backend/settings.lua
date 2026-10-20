@@ -19,7 +19,6 @@ M.DEFAULTS = {
 	enableCollectionButton = true,
 }
 
--- Populate metric defaults dynamically from registry
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do
 	if M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
 		M.DEFAULTS.lastUsedMetric = stream.metrics[1].id
@@ -33,6 +32,9 @@ local function get_settings_path()
 	return millennium.get_install_path() .. "/settings.json"
 end
 
+--- Merges partial user settings with plugin defaults.
+--- Consumes a table of user settings and returns a complete settings table.
+--- Ensures all available stream metrics have defined fallback values.
 function M.merge_defaults(user_settings)
 	local result = {}
 
@@ -57,6 +59,9 @@ function M.merge_defaults(user_settings)
 	return result
 end
 
+--- Loads persistent plugin settings from disk.
+--- Reads and parses the settings JSON file, returning merged defaults on error or missing file.
+--- Does not throw; falls back safely to default settings.
 function M.load()
 	local path = get_settings_path()
 	local file = io.open(path, "r")
@@ -76,6 +81,9 @@ function M.load()
 	return M.merge_defaults(parsed)
 end
 
+--- Writes plugin settings to the local filesystem.
+--- Consumes a table of settings and returns true on success, or false if writing fails.
+--- Serializes settings to JSON and overwrites the settings file.
 function M.save(settings)
 	local path = get_settings_path()
 	local file, err = io.open(path, "w")

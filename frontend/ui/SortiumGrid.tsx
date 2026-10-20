@@ -1,4 +1,4 @@
-import { ReactNode, useState, useRef, useLayoutEffect, useEffect } from 'react';
+import { ReactNode, useState, useRef, useLayoutEffect, useEffect, useMemo } from 'react';
 import { findModule } from '@steambrew/client';
 import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
@@ -20,6 +20,10 @@ interface SortiumGridProps {
 	popup?: any;
 }
 
+/**
+ * Smart layout controller for the custom Sortium library grid.
+ * Queries Steam stores, manages sorting order, interacts with the queue service, and renders capsules.
+ */
 export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const collectionModule = findModule((m) => m.GridWithControls && m.CollectionOptions) || {};
 	const yourCollectionModule = findModule((m) => m.YourCollection) || {};
@@ -32,7 +36,7 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const [activeMetric, setActiveMetric] = useState<string>(settings.lastUsedMetric || 'hltb_main');
 	const [activeDirection, setActiveDirection] = useState<'asc' | 'desc'>(settings.sortDirection || 'asc');
 
-	const [, setRenderTrigger] = useState(0);
+	const [renderTrigger, setRenderTrigger] = useState(0);
 	const customGridRef = useRef<HTMLDivElement>(null);
 
 	const handleSortChange = (metric: string, direction: 'asc' | 'desc') => {
@@ -68,13 +72,24 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	useEffect(() => {
 		if (appIds.length === 0) return;
 
+		let throttleTimer: any = null;
+
 		const unsubscribe = queueService.subscribe(() => {
-			setRenderTrigger((prev) => prev + 1);
+			if (!throttleTimer) {
+				throttleTimer = setTimeout(() => {
+					setRenderTrigger((prev) => prev + 1);
+					throttleTimer = null;
+				}, 1000);
+			}
 		});
 
-		queueService.enqueue(appIds, activeMetric);
+		const streamId = activeMetric.split('_')[0] || 'hltb';
+		queueService.enqueue(appIds, streamId);
 
-		return () => unsubscribe();
+		return () => {
+			if (throttleTimer) clearTimeout(throttleTimer);
+			unsubscribe();
+		};
 	}, [appIds, activeMetric]);
 
 	useLayoutEffect(() => {
@@ -109,8 +124,14 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 	const dataResolver = (id: number) => queueService.getCachedData(streamId, id);
-	const displayIds = appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver, activeDirection) : [];
-	const resolvedCount = appIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
+
+	const displayIds = useMemo(() => {
+		return appIds.length > 0 ? sortApps(appIds, activeMetric, dataResolver, activeDirection) : [];
+	}, [appIds, activeMetric, activeDirection, renderTrigger]);
+
+	const resolvedCount = useMemo(() => {
+		return appIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
+	}, [appIds, streamId, renderTrigger]);
 
 	return (
 		<div className={collectionModule.GridWithControls} style={containerStyle}>
@@ -143,17 +164,9 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 					<div role="row" aria-rowindex={1} style={{ display: 'contents' }}>
 						{displayIds.map((id) => {
 							const data = dataResolver(id);
-								const metricValue = getMetricValue(activeMetric, data);
-							const state = queueService.getEntryState(streamId, id);
-								const isError = state === 'ERROR_CACHE';
-								const isMissing = data === null && !isError;
-
-								let metricText = 'No data';
-								if (isError) {
-									metricText = 'No Data';
-								} else {
-									metricText = formatMetricValue(metricValue, activeMetric, isMissing);
-								}
+							const metricValue = getMetricValue(activeMetric, data);
+							const state = queueService.getEntryState(streamId, id) as any;
+							const metricText = formatMetricValue(metricValue, activeMetric, state);
 							
 							const overview = appStore.GetAppOverviewByAppID(id);
 							const app = appStore.m_mapApps.get(id);

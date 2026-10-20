@@ -68,12 +68,14 @@ local function save_chunk(stream_id, chunk_id, data)
 	return true
 end
 
+--- Retrieves cached data for a batch of AppIDs within a specific stream.
+--- Consumes a stream ID and array of AppIDs, and returns a dictionary of parsed JSON entries.
+--- Reads from local chunked disk storage without making external network calls.
 function M.get_batch(stream_id, app_ids)
 	if not is_valid_stream(stream_id) then
 		return {}
 	end
 
-	-- Group app_ids by chunk
 	local chunk_requests = {}
 	for _, app_id in ipairs(app_ids) do
 		local chunk_id = get_chunk_id(app_id)
@@ -83,7 +85,6 @@ function M.get_batch(stream_id, app_ids)
 		table.insert(chunk_requests[chunk_id], tostring(app_id))
 	end
 
-	-- Read only necessary chunks
 	local result = {}
 	for chunk_id, ids in pairs(chunk_requests) do
 		local chunk_data = load_chunk(stream_id, chunk_id)
@@ -97,13 +98,15 @@ function M.get_batch(stream_id, app_ids)
 	return result
 end
 
+--- Persists a batch of updated cache entries to the local filesystem.
+--- Consumes a stream ID and a dictionary of new data payloads.
+--- Returns true on complete success, performing atomic disk writes to prevent corruption.
 function M.save_batch(stream_id, new_data)
 	if not is_valid_stream(stream_id) then
 		logger:error("Sortium: Invalid stream ID provided to save_batch: " .. tostring(stream_id))
 		return false
 	end
 
-	-- Group new_data by chunk
 	local chunk_updates = {}
 	for app_id, entry_payload in pairs(new_data) do
 		local chunk_id = get_chunk_id(app_id)
@@ -113,7 +116,6 @@ function M.save_batch(stream_id, new_data)
 		chunk_updates[chunk_id][tostring(app_id)] = entry_payload
 	end
 
-	-- Update and save each affected chunk exactly once
 	local all_success = true
 	for chunk_id, updates in pairs(chunk_updates) do
 		local chunk_data = load_chunk(stream_id, chunk_id)
@@ -131,6 +133,9 @@ function M.save_batch(stream_id, new_data)
 	return all_success
 end
 
+--- Deletes all cached data chunks associated with a specific stream on disk.
+--- Consumes a stream ID and returns true if the cleanup was initiated.
+--- Modifies the local filesystem by removing up to 100 chunk files and legacy caches.
 function M.clear_stream(stream_id)
 	if not is_valid_stream(stream_id) then
 		logger:error("Sortium: Invalid stream ID provided to clear_stream: " .. tostring(stream_id))
@@ -142,7 +147,6 @@ function M.clear_stream(stream_id)
 		os.remove(path)
 	end
 	
-	-- Clean up legacy monolithic cache file if it exists
 	os.remove(millennium.get_install_path() .. "/cache_" .. stream_id .. ".json")
 
 	logger:info("Sortium: Cleared chunked cache for stream " .. stream_id)

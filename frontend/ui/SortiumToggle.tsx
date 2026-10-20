@@ -7,6 +7,11 @@ interface SortiumToggleProps {
 	popup?: any;
 }
 
+/**
+ * Renders an interactive toggle button in the Steam collection header to enable or disable the Sortium grid.
+ * Consumes the Steam popup window object.
+ * Mutates native and custom collection grid DOM styles to show or hide Sortium views.
+ */
 export function SortiumToggle({ popup }: SortiumToggleProps) {
 	const [isActive, setIsActive] = useState(false);
 

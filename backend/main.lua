@@ -13,6 +13,8 @@ local registry = require("streams.registry")
 -- Cache Endpoints
 -- ------------------------------------------------------------------------------
 
+--- Handles IPC requests from frontend to load cached metrics for a batch of AppIDs.
+--- Consumes a JSON string containing stream_id and app_ids, returning cached records.
 function GetCacheBatch(args_json)
 	local ok, args = pcall(json.decode, args_json)
 	if not ok or not args.stream_id or not args.app_ids then
@@ -27,6 +29,8 @@ function GetCacheBatch(args_json)
 	})
 end
 
+--- Handles IPC requests from frontend to append newly fetched metrics to disk cache.
+--- Consumes a JSON string with stream_id and new_data, returning a JSON status object.
 function AppendToCache(args_json)
 	local ok, args = pcall(json.decode, args_json)
 	if not ok or not args.stream_id or not args.new_data then
@@ -41,6 +45,9 @@ function AppendToCache(args_json)
 	end
 end
 
+--- Handles IPC requests to delete all cached chunk files across all registered streams.
+--- Takes no arguments and returns a JSON success status.
+--- Removes all chunked cache files from the filesystem.
 function ClearCache()
 	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
 		cache.clear_stream(stream.id)
@@ -52,6 +59,8 @@ end
 -- Fetch Endpoints
 -- ------------------------------------------------------------------------------
 
+--- Handles IPC requests to fetch fresh metric data from an external API for a specific game.
+--- Consumes a JSON string with stream_id and app_id, returning a JSON response with parsed data.
 function FetchStreamData(args_json)
 	local ok, args = pcall(json.decode, args_json)
 	if not ok or not args.stream_id or not args.app_id then
@@ -82,6 +91,8 @@ end
 -- Settings Endpoints
 -- ------------------------------------------------------------------------------
 
+--- Handles IPC requests to retrieve metadata and configurations for all registered streams.
+--- Returns a JSON array containing stream IDs, names, delays, and exposed metrics.
 function GetAvailableStreams()
 	local safe_streams = {}
 
@@ -111,6 +122,8 @@ function GetAvailableStreams()
 	})
 end
 
+--- Handles IPC requests to load plugin user configuration from disk.
+--- Returns a JSON object containing current user settings.
 function GetSettings()
 	return json.encode({
 		success = true,
@@ -118,6 +131,9 @@ function GetSettings()
 	})
 end
 
+--- Handles IPC requests to persist updated plugin settings to disk.
+--- Consumes a JSON string of settings, returning a JSON success or failure status.
+--- Overwrites the local settings.json file on disk.
 function SaveSettings(settings_json)
 	local ok, new_settings = pcall(json.decode, settings_json)
 	if not ok then
@@ -137,15 +153,21 @@ end
 -- Millennium Lifecycle Hooks
 -- ==============================================================================
 
+--- Lifecycle hook called by Millennium when the backend plugin initializes.
+--- Logs plugin readiness and invokes millennium.ready() to signal startup completion.
 local function on_load()
 	logger:info("Sortium plugin loaded with Millennium version " .. millennium.version())
 	millennium.ready()
 end
 
+--- Lifecycle hook called by Millennium when the plugin is unloaded.
+--- Logs backend plugin termination and teardown.
 local function on_unload()
 	logger:info("Sortium plugin unloaded")
 end
 
+--- Lifecycle hook called by Millennium once the Steam frontend UI is attached.
+--- Confirms backend connectivity with the frontend process.
 local function on_frontend_loaded()
 	logger:info("Sortium frontend loaded")
 end

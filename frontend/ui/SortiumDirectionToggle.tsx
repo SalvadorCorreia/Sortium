@@ -6,6 +6,11 @@ interface SortiumDirectionToggleProps {
 	onDirectionChange: (newDir: 'asc' | 'desc') => void;
 }
 
+/**
+ * Renders a toggle button to switch between ascending and descending sort directions.
+ * Consumes the current sort direction and a change callback.
+ * Persists the updated direction to user settings and notifies parent listeners.
+ */
 export function SortiumDirectionToggle({ direction, onDirectionChange }: SortiumDirectionToggleProps) {
 	const iconButtonModule = findModule((m) => m.IconButton) || {};
 

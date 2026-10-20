@@ -8,6 +8,11 @@ interface SortiumDropdownProps {
 	onSortChange?: (metric: string, direction: 'asc' | 'desc') => void;
 }
 
+/**
+ * Renders a dropdown menu populated with enabled data stream metrics.
+ * Consumes optional layout variant and sort change callback props.
+ * Updates user settings on selection and triggers sorting changes in parent views.
+ */
 export function SortiumDropdown({ variant = 'default', onSortChange }: SortiumDropdownProps) {
 	const currentSettings = getSettings();
 	const streams = getAvailableStreams();

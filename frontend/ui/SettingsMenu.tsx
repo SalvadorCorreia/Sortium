@@ -3,11 +3,18 @@ import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
 import { queueService } from '../services/queue';
+import { formatProgressFeedback } from '../utils/sorting';
 
+/**
+ * Renders the Sortium configuration interface in the Steam client settings.
+ * Allows managing data stream toggles, metric visibility, layout styles, and cache operations.
+ */
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
 	const [streams, setStreams] = useState<DataStream[]>([]);
 	const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+	const [isSyncing, setIsSyncing] = useState(false);
+	const [syncFeedback, setSyncFeedback] = useState<{ text: string; color: string } | null>(null);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -23,6 +30,49 @@ export default function SettingsMenu() {
 			isMounted = false;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!settings || streams.length === 0) return;
+
+		const enabledStreamIds = streams
+			.filter((stream) => settings.enabledStreams[stream.id] !== false)
+			.map((stream) => stream.id);
+
+		if (enabledStreamIds.length === 0) return;
+
+		let wasRunning = false;
+
+		const updateFeedback = () => {
+			const progress = queueService.getSyncProgress(enabledStreamIds);
+			if (progress.isRunning || progress.totalPending > 0) {
+				wasRunning = true;
+				const feedback = formatProgressFeedback(progress, streams);
+				setSyncFeedback({ text: feedback.text, color: feedback.color });
+			} else if (wasRunning) {
+				wasRunning = false;
+				setSyncFeedback({ text: '✓ Complete: All games up to date', color: '#a4d007' });
+			}
+		};
+
+		// Check if sync is already active on mount (e.g. user reopened settings)
+		updateFeedback();
+
+		// Subscribe to real-time queue progress
+		const unsubscribe = queueService.subscribe(updateFeedback);
+
+		// Live countdown tick while rate limited
+		const interval = setInterval(() => {
+			const progress = queueService.getSyncProgress(enabledStreamIds);
+			if (progress.isRateLimited) {
+				updateFeedback();
+			}
+		}, 1000);
+
+		return () => {
+			unsubscribe();
+			clearInterval(interval);
+		};
+	}, [settings, streams]);
 
 	if (!settings) {
 		return <Field label="Loading Sortium Configuration..." />;
@@ -104,14 +154,32 @@ export default function SettingsMenu() {
 		setIsConfirmingClear(false);
 	};
 
-	const executeForceSync = () => {
-		if (!settings || streams.length === 0) return;
+	const executeForceSync = async () => {
+		if (!settings || streams.length === 0 || isSyncing) return;
+		setIsSyncing(true);
 
-		streams.forEach((stream) => {
-			if (settings.enabledStreams[stream.id] !== false) {
-				queueService.forceSyncLibrary(`${stream.id}_sync`);
-			}
-		});
+		const enabledStreamIds = streams
+			.filter((stream) => settings.enabledStreams[stream.id] !== false)
+			.map((stream) => stream.id);
+
+		if (enabledStreamIds.length === 0) {
+			setSyncFeedback({ text: 'No streams enabled', color: '#ffc82c' });
+			setIsSyncing(false);
+			setTimeout(() => setSyncFeedback(null), 4000);
+			return;
+		}
+
+		try {
+			await queueService.syncLibrary(enabledStreamIds);
+			const progress = queueService.getSyncProgress(enabledStreamIds);
+			const feedback = formatProgressFeedback(progress, streams);
+			setSyncFeedback({ text: feedback.text, color: feedback.color });
+		} catch (error) {
+			logger.error('Failed to execute force sync:', error);
+			setSyncFeedback({ text: 'Sync failed', color: '#ff5555' });
+		} finally {
+			setIsSyncing(false);
+		}
 	};
 
 	return (
@@ -236,21 +304,29 @@ export default function SettingsMenu() {
 					/>
 				</Field>
 				<Field label="Force Sync Library" description="Pushes all cached games into the background fetch queue immediately." bottomSeparator="standard">
-					<button
-						onClick={executeForceSync}
-						style={{
-							padding: '6px 12px',
-							background: '#3d4450',
-							color: 'white',
-							border: 'none',
-							borderRadius: '4px',
-							cursor: 'pointer',
-							fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-							fontSize: '13px',
-						}}
-					>
-						Force Sync
-					</button>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+						<button
+							onClick={executeForceSync}
+							disabled={isSyncing}
+							style={{
+								padding: '6px 12px',
+								background: isSyncing ? '#282c34' : '#3d4450',
+								color: isSyncing ? '#8f98a0' : 'white',
+								border: 'none',
+								borderRadius: '4px',
+								cursor: isSyncing ? 'default' : 'pointer',
+								fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
+								fontSize: '13px',
+							}}
+						>
+							{isSyncing ? 'Evaluating...' : 'Force Sync'}
+						</button>
+						{syncFeedback && (
+							<span style={{ fontSize: '13px', color: syncFeedback.color, fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif' }}>
+								{syncFeedback.text}
+							</span>
+						)}
+					</div>
 				</Field>
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
 					{!isConfirmingClear ? (

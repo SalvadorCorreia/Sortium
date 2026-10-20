@@ -54,6 +54,11 @@ async function OnPopupCreation(popup: any) {
 	}
 }
 
+/**
+ * Entry point for the Sortium frontend plugin within the Steam Millennium framework.
+ * Consumes a plugin setup callback and returns plugin metadata and teardown hooks.
+ * Hooks window creation to initialize settings and inject UI components upon navigation.
+ */
 export default definePlugin(() => {
 	logger.info('Frontend plugin registered.');
 

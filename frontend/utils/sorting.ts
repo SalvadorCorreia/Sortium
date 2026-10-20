@@ -1,5 +1,10 @@
-import { getAvailableStreams } from '../services/settings';
+import { getAvailableStreams, type DataStream } from '../services/settings';
+import type { AppState, LibrarySyncReport, SyncProgressReport } from '../services/queue';
 
+/**
+ * Resolves a specific metric value from a raw cache data object.
+ * Returns the numeric value if found, handling fuzzy key matching, or null if missing.
+ */
 export function getMetricValue(metric: string, data: any): number | null {
 	if (!data) return null;
 
@@ -33,6 +38,10 @@ export function getMetricValue(metric: string, data: any): number | null {
 	return null;
 }
 
+/**
+ * Sorts an array of AppIDs based on a specified metric and direction.
+ * Consumes a dataResolver callback to fetch cached data and returns a new sorted array.
+ */
 export function sortApps(appIds: number[], metricId: string, dataResolver: (appId: number) => any, direction: 'asc' | 'desc' = 'asc'): number[] {
 	const getSortValue = (appId: number) => {
 		const data = dataResolver(appId);
@@ -52,8 +61,13 @@ export function sortApps(appIds: number[], metricId: string, dataResolver: (appI
 	});
 }
 
-export function formatMetricValue(value: number | null, metricId: string, isMissing: boolean): string {
-	if (isMissing) return 'Loading...';
+/**
+ * Formats a raw metric number into a human-readable UI string (e.g., "12 hrs" or "85%").
+ * Evaluates entry state to display "Loading..." or "No data" appropriately.
+ */
+export function formatMetricValue(value: number | null, metricId: string, state: AppState = 'CACHED'): string {
+	if (state === 'ERROR_CACHE') return 'No data';
+	if (state === 'MISSING' || state === 'BATCHING' || state === 'QUEUED' || state === 'FETCHING') return 'Loading...';
 	if (value === null || value === undefined || value === Infinity || value === -Infinity) return 'No data';
 
 	let metricType: string = 'time';
@@ -80,4 +94,109 @@ export function formatMetricValue(value: number | null, metricId: string, isMiss
 			}
 			return `${(value / 60).toFixed(1)} hrs`;
 	}
+}
+
+/**
+ * Consumes a LibrarySyncReport and stream metadata, returning presentation-ready status text and color.
+ */
+export function formatSyncFeedback(
+	report: LibrarySyncReport,
+	streams: DataStream[]
+): { text: string; color: string } {
+	if (report.totalGames === 0) {
+		return { text: 'No games found in library', color: '#ffc82c' };
+	}
+
+	const streamMap = new Map(streams.map((s) => [s.id, s.tag || s.name]));
+	const streamIds = Object.keys(report.streamResults);
+
+	if (report.totalQueued > 0) {
+		const singleTag = streamIds[0] ? (streamMap.get(streamIds[0]) || streamIds[0]) : '';
+		const details =
+			streamIds.length > 1
+				? ` (${streamIds.map((id) => `${streamMap.get(id) || id}: ${report.streamResults[id]?.queued || 0}`).join(', ')})`
+				: ` (${singleTag})`;
+
+		return {
+			text: `✓ Queued ${report.totalQueued} games${details}`,
+			color: '#a4d007',
+		};
+	}
+
+	// Fix sequential click bug: items already queued and in-flight
+	if (report.totalPending > 0) {
+		const singleTag = streamIds[0] ? (streamMap.get(streamIds[0]) || streamIds[0]) : '';
+		const details =
+			streamIds.length > 1
+				? ` (${streamIds.map((id) => `${streamMap.get(id) || id}: ${report.streamResults[id]?.pending || 0}`).join(', ')})`
+				: ` (${singleTag})`;
+
+		return {
+			text: `⟳ Sync in progress: ${report.totalPending} pending${details}`,
+			color: '#66c0f4',
+		};
+	}
+
+	const streamTags = streamIds.map((id) => streamMap.get(id) || id);
+	const label = streamTags.length > 0 ? ` (${streamTags.join(', ')})` : '';
+
+	return {
+		text: `✓ All ${report.totalGames} games up to date${label}`,
+		color: '#8f98a0',
+	};
+}
+
+/**
+ * Formats a duration in seconds into a human-readable string (e.g. "17m 10s" or "45s").
+ */
+export function formatDurationSeconds(totalSeconds: number): string {
+	if (totalSeconds <= 0) return '0s';
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	if (minutes > 0) {
+		return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+	}
+	return `${seconds}s`;
+}
+
+/**
+ * Consumes a real-time SyncProgressReport and stream metadata, returning progress text, theme color, and completion status.
+ */
+export function formatProgressFeedback(
+	progress: SyncProgressReport,
+	streams: DataStream[]
+): { text: string; color: string; isComplete: boolean } {
+	if (!progress.isRunning && progress.totalPending === 0) {
+		return { text: '✓ All games up to date', color: '#8f98a0', isComplete: true };
+	}
+
+	const streamMap = new Map(streams.map((s) => [s.id, s.tag || s.name]));
+	const streamIds = Object.keys(progress.streamProgress);
+
+	if (progress.isRateLimited) {
+		const limitedStream = streamIds.find((id) => progress.streamProgress[id]?.isRateLimited);
+		const tag = limitedStream ? streamMap.get(limitedStream) || limitedStream : 'API';
+		const countdown = progress.retryAfterSeconds && progress.retryAfterSeconds > 0
+			? ` - retry in ${formatDurationSeconds(progress.retryAfterSeconds)}`
+			: '';
+		return {
+			text: `⚠ Rate limited (${tag})${countdown} - ${progress.totalPending} left in queue`,
+			color: '#ffc82c',
+			isComplete: false,
+		};
+	}
+
+	const completed = Math.max(0, progress.totalInitial - progress.totalPending);
+	const percent = progress.totalInitial > 0 ? Math.floor((completed / progress.totalInitial) * 100) : 0;
+
+	const breakdown =
+		streamIds.length > 1
+			? ` (${streamIds.map((id) => `${streamMap.get(id) || id}: ${progress.streamProgress[id]?.pending || 0}`).join(', ')})`
+			: '';
+
+	return {
+		text: `⟳ Syncing: ${completed}/${progress.totalInitial} (${percent}%) - ${progress.totalPending} left${breakdown}`,
+		color: '#66c0f4',
+		isComplete: false,
+	};
 }

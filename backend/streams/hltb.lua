@@ -16,6 +16,9 @@ M.metrics = {
 	{ id = "hltb_all_styles", name = "All Styles", type = "time", defaultDir = "asc" },
 }
 
+--- Fetches completion time metrics for a given game from HowLongToBeat.
+--- Consumes a Steam AppID and returns a table containing the parsed times or an error state.
+--- Performs a blocking HTTP request to the Augmented Steam API.
 function M.fetch(app_id)
 	local numeric_id = tonumber(app_id)
 	if not numeric_id then
@@ -47,7 +50,16 @@ function M.fetch(app_id)
 	if response.status ~= 200 then
 		local err_msg = "Bad HTTP Status: " .. tostring(response.status) .. " | Body: " .. tostring(response.body)
 		logger:error("[HLTB] " .. err_msg)
-		return { data = nil, error = true, details = err_msg, status = response.status }
+		local retry_after = nil
+		if response.headers then
+			for k, v in pairs(response.headers) do
+				if string.lower(tostring(k)) == "retry-after" then
+					retry_after = tonumber(v)
+					break
+				end
+			end
+		end
+		return { data = nil, error = true, details = err_msg, status = response.status, retry_after = retry_after }
 	end
 
 	local parsed_ok, body = pcall(json.decode, response.body)
