@@ -1,11 +1,11 @@
 import { callable } from '@steambrew/client';
-import { getSettings } from './settings';
+import { getSettings, getAvailableStreams } from './settings';
 import { logger } from './logger';
 
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
 const fetchStreamData = callable<[{ args_json: string }], string>('FetchStreamData');
-const getAvailableStreams = callable<[], string>('GetAvailableStreams');
+const getAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
 
 declare global {
 	var appStore: any;
@@ -43,9 +43,10 @@ export interface LibrarySyncReport {
 export interface SyncProgressReport {
 	isRunning: boolean;
 	isRateLimited: boolean;
+	retryAfterSeconds?: number;
 	totalPending: number;
 	totalInitial: number;
-	streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean }>;
+	streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean; retryAfterSeconds?: number }>;
 }
 
 class QueueService {
@@ -55,6 +56,7 @@ class QueueService {
 	private lowPriority: Record<string, string[]> = {};
 
 	private isRateLimited: Record<string, boolean> = {};
+	private rateLimitUntil: Record<string, number> = {};
 	private processingStreams: Set<string> = new Set();
 	private recoveringStreams: Set<string> = new Set();
 
@@ -66,19 +68,23 @@ class QueueService {
 	private isDismounted = false;
 
 	private async getDelay(streamId: string): Promise<number> {
+		const streams = getAvailableStreams();
+		const stream = streams.find((s) => s.id === streamId);
+		if (stream?.delay) return stream.delay;
+
 		if (!this.streamDelays) {
 			this.streamDelays = {};
 			try {
-				const raw = await getAvailableStreams();
+				const raw = await getAvailableStreamsRpc();
 				const res = JSON.parse(raw);
 				if (res.success && res.data) {
 					res.data.forEach((s: any) => { this.streamDelays![s.id] = s.delay; });
 				}
 			} catch (e) {
-				return 500;
+				logger.error('QueueService: Failed to fetch stream delays from IPC', e);
 			}
 		}
-		return this.streamDelays[streamId] || 500;
+		return this.streamDelays[streamId] || 2000;
 	}
 
 	public subscribe(fn: () => void): () => void {
@@ -101,6 +107,16 @@ class QueueService {
 	 */
 	public getStreamState(streamId: string): string {
 		return this.isRateLimited[streamId] ? 'RATE_LIMITED' : 'HEALTHY';
+	}
+
+	/**
+	 * Returns the remaining rate limit cooldown in seconds for a stream, or 0 if healthy.
+	 */
+	public getRateLimitRemaining(streamId: string): number {
+		const until = this.rateLimitUntil[streamId];
+		if (!until) return 0;
+		const now = Math.floor(Date.now() / 1000);
+		return Math.max(0, until - now);
 	}
 
 	/**
@@ -321,8 +337,12 @@ class QueueService {
 						entry.state = 'QUEUED';
 						this.highPriority[streamId]!.push(appId);
 						this.isRateLimited[streamId] = true;
+						const serverRetry = Number(res?.result?.retry_after);
+						const retrySeconds = (serverRetry && serverRetry > 0) ? serverRetry : 300;
+						this.rateLimitUntil[streamId] = Math.floor(Date.now() / 1000) + retrySeconds;
+						logger.warn(`QueueService [${streamId}]: Rate limited. Server requested ${retrySeconds}s backoff.`);
 						this.notify();
-						this.startRecoveryLoop(streamId);
+						this.startRecoveryLoop(streamId, retrySeconds);
 						break;
 					} else {
 						entry.failCount += 1;
@@ -361,22 +381,28 @@ class QueueService {
 		this.processingStreams.delete(streamId);
 	}
 
-	private async startRecoveryLoop(streamId: string) {
+	private async startRecoveryLoop(streamId: string, initialRetrySeconds?: number) {
 		if (this.recoveringStreams.has(streamId)) return;
 		this.recoveringStreams.add(streamId);
 
-		let sleepTime = 300;
+		let sleepTime = initialRetrySeconds || 300;
 		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
 		if (!this.lowPriority[streamId]) this.lowPriority[streamId] = [];
 
 		while (this.isRateLimited[streamId]) {
 			if (this.isDismounted) break;
 
-			await new Promise((r) => setTimeout(r, sleepTime * 1000));
+			const now = Math.floor(Date.now() / 1000);
+			const target = this.rateLimitUntil[streamId] || (now + sleepTime);
+			const remainingWait = Math.max(1, target - now);
+
+			await new Promise((r) => setTimeout(r, remainingWait * 1000));
 			if (this.isDismounted) break;
 
 			if (this.highPriority[streamId]!.length === 0 && this.lowPriority[streamId]!.length === 0) {
 				this.isRateLimited[streamId] = false;
+				delete this.rateLimitUntil[streamId];
+				this.notify();
 				break;
 			}
 
@@ -401,6 +427,7 @@ class QueueService {
 					this.batchSave(streamId, appId, { data: entry.data, fetchedAt: entry.fetchedAt, error: false });
 
 					this.isRateLimited[streamId] = false;
+					delete this.rateLimitUntil[streamId];
 					this.notify();
 					this.startProcessing(streamId);
 					break;
@@ -409,7 +436,11 @@ class QueueService {
 					if (status === 429 || status === 503) {
 						entry.state = 'QUEUED';
 						this.highPriority[streamId]!.push(appId);
-						sleepTime = Math.min(sleepTime * 2, 1200);
+						const serverRetry = Number(res?.result?.retry_after);
+						sleepTime = (serverRetry && serverRetry > 0) ? serverRetry : Math.min(sleepTime * 2, 1800);
+						this.rateLimitUntil[streamId] = Math.floor(Date.now() / 1000) + sleepTime;
+						logger.warn(`QueueService [${streamId}]: Still rate limited during recovery. Sleeping ${sleepTime}s.`);
+						this.notify();
 					} else {
 						entry.failCount += 1;
 						if (entry.failCount >= 3) {
@@ -422,6 +453,7 @@ class QueueService {
 							this.lowPriority[streamId]!.push(appId);
 						}
 						this.isRateLimited[streamId] = false;
+						delete this.rateLimitUntil[streamId];
 						this.notify();
 						this.startProcessing(streamId);
 						break;
@@ -431,7 +463,9 @@ class QueueService {
 				if (this.isDismounted) break;
 				entry.state = 'QUEUED';
 				this.highPriority[streamId]!.push(appId);
-				sleepTime = Math.min(sleepTime * 2, 1200);
+				sleepTime = Math.min(sleepTime * 2, 1800);
+				this.rateLimitUntil[streamId] = Math.floor(Date.now() / 1000) + sleepTime;
+				this.notify();
 			}
 		}
 
@@ -457,19 +491,24 @@ class QueueService {
 		let totalInitial = 0;
 		let isRunning = false;
 		let isRateLimited = false;
-		const streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean }> = {};
+		let maxRetryRemaining = 0;
+		const streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean; retryAfterSeconds?: number }> = {};
 
 		for (const streamId of streamIds) {
 			const pending = this.getPendingCount(streamId);
 			const initial = Math.max(this.syncTotals[streamId] || 0, pending);
 			const streamRunning = this.processingStreams.has(streamId) || this.recoveringStreams.has(streamId);
 			const streamLimited = !!this.isRateLimited[streamId];
+			const remaining = this.getRateLimitRemaining(streamId);
 
 			if (pending > 0 || streamRunning) {
 				isRunning = true;
 			}
 			if (streamLimited) {
 				isRateLimited = true;
+				if (remaining > maxRetryRemaining) {
+					maxRetryRemaining = remaining;
+				}
 			}
 
 			if (pending === 0 && !streamRunning) {
@@ -478,12 +517,18 @@ class QueueService {
 
 			totalPending += pending;
 			totalInitial += initial;
-			streamProgress[streamId] = { pending, initial, isRateLimited: streamLimited };
+			streamProgress[streamId] = {
+				pending,
+				initial,
+				isRateLimited: streamLimited,
+				retryAfterSeconds: streamLimited && remaining > 0 ? remaining : undefined,
+			};
 		}
 
 		return {
 			isRunning,
 			isRateLimited,
+			retryAfterSeconds: isRateLimited && maxRetryRemaining > 0 ? maxRetryRemaining : undefined,
 			totalPending,
 			totalInitial,
 			streamProgress,

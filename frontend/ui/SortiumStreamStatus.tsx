@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Focusable, findModule } from '@steambrew/client';
 import { queueService } from '../services/queue';
+import { formatDurationSeconds } from '../utils/sorting';
 
 interface SortiumStreamStatusProps {
 	activeMetric: string;
@@ -18,18 +19,34 @@ export function SortiumStreamStatus({ activeMetric, resolvedCount, totalCount }:
 	const streamId = activeMetric.split('_')[0] || 'hltb';
 
 	const [isRateLimited, setIsRateLimited] = useState<boolean>(queueService.getStreamState(streamId) === 'RATE_LIMITED');
+	const [remainingSeconds, setRemainingSeconds] = useState<number>(queueService.getRateLimitRemaining(streamId));
 
 	useEffect(() => {
-		const unsubscribe = queueService.subscribe(() => {
-			setIsRateLimited(queueService.getStreamState(streamId) === 'RATE_LIMITED');
-		});
-		return () => unsubscribe();
+		const update = () => {
+			const limited = queueService.getStreamState(streamId) === 'RATE_LIMITED';
+			setIsRateLimited(limited);
+			setRemainingSeconds(queueService.getRateLimitRemaining(streamId));
+		};
+
+		update();
+		const unsubscribe = queueService.subscribe(update);
+		const timer = setInterval(() => {
+			if (queueService.getStreamState(streamId) === 'RATE_LIMITED') {
+				setRemainingSeconds(queueService.getRateLimitRemaining(streamId));
+			}
+		}, 1000);
+
+		return () => {
+			unsubscribe();
+			clearInterval(timer);
+		};
 	}, [streamId]);
 
 	if (isRateLimited) {
+		const retryText = remainingSeconds > 0 ? ` (retry in ${formatDurationSeconds(remainingSeconds)})` : '';
 		return (
 			<Focusable
-				title="API Rate Limited - Stream suspended temporarily"
+				title={`API Rate Limited - Stream suspended temporarily${retryText}`}
 				className={iconButtonModule.IconButton}
 				style={{
 					display: 'flex',

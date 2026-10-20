@@ -20,6 +20,7 @@ export interface DataStream {
 	id: string;
 	name: string;
 	tag: string;
+	delay?: number;
 	metrics: Metric[];
 }
 

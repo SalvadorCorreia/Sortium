@@ -147,6 +147,19 @@ export function formatSyncFeedback(
 }
 
 /**
+ * Formats a duration in seconds into a human-readable string (e.g. "17m 10s" or "45s").
+ */
+export function formatDurationSeconds(totalSeconds: number): string {
+	if (totalSeconds <= 0) return '0s';
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	if (minutes > 0) {
+		return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+	}
+	return `${seconds}s`;
+}
+
+/**
  * Consumes a real-time SyncProgressReport and stream metadata, returning progress text, theme color, and completion status.
  */
 export function formatProgressFeedback(
@@ -163,8 +176,11 @@ export function formatProgressFeedback(
 	if (progress.isRateLimited) {
 		const limitedStream = streamIds.find((id) => progress.streamProgress[id]?.isRateLimited);
 		const tag = limitedStream ? streamMap.get(limitedStream) || limitedStream : 'API';
+		const countdown = progress.retryAfterSeconds && progress.retryAfterSeconds > 0
+			? ` - retry in ${formatDurationSeconds(progress.retryAfterSeconds)}`
+			: '';
 		return {
-			text: `⚠ Rate limited (${tag}) - ${progress.totalPending} left in queue`,
+			text: `⚠ Rate limited (${tag})${countdown} - ${progress.totalPending} left in queue`,
 			color: '#ffc82c',
 			isComplete: false,
 		};

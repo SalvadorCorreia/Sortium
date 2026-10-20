@@ -42,16 +42,7 @@ export default function SettingsMenu() {
 
 		let wasRunning = false;
 
-		// Check if sync is already active on mount (e.g. user reopened settings)
-		const currentProgress = queueService.getSyncProgress(enabledStreamIds);
-		if (currentProgress.isRunning || currentProgress.totalPending > 0) {
-			wasRunning = true;
-			const feedback = formatProgressFeedback(currentProgress, streams);
-			setSyncFeedback({ text: feedback.text, color: feedback.color });
-		}
-
-		// Subscribe to real-time queue progress
-		const unsubscribe = queueService.subscribe(() => {
+		const updateFeedback = () => {
 			const progress = queueService.getSyncProgress(enabledStreamIds);
 			if (progress.isRunning || progress.totalPending > 0) {
 				wasRunning = true;
@@ -61,9 +52,26 @@ export default function SettingsMenu() {
 				wasRunning = false;
 				setSyncFeedback({ text: '✓ Complete: All games up to date', color: '#a4d007' });
 			}
-		});
+		};
 
-		return () => unsubscribe();
+		// Check if sync is already active on mount (e.g. user reopened settings)
+		updateFeedback();
+
+		// Subscribe to real-time queue progress
+		const unsubscribe = queueService.subscribe(updateFeedback);
+
+		// Live countdown tick while rate limited
+		const interval = setInterval(() => {
+			const progress = queueService.getSyncProgress(enabledStreamIds);
+			if (progress.isRateLimited) {
+				updateFeedback();
+			}
+		}, 1000);
+
+		return () => {
+			unsubscribe();
+			clearInterval(interval);
+		};
 	}, [settings, streams]);
 
 	if (!settings) {
