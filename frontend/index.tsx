@@ -2,7 +2,7 @@ import { Millennium, definePlugin, IconsModule, sleep } from '@steambrew/client'
 import { initSettings, getSettings } from './services/settings';
 import SettingsMenu from './ui/SettingsMenu';
 import { logger } from './services/logger';
-import { injectHomeDropdowns, injectCollectionToggle, injectSortiumGrid, cleanupInjectors } from './utils/injectors';
+import { /* injectHomeDropdowns, */ injectCollectionToggle, injectSortiumGrid, cleanupInjectors } from './utils/injectors';
 import { queueService } from './services/queue';
 
 declare global {
@@ -35,8 +35,8 @@ async function OnPopupCreation(popup: any) {
 			if (isDismounted) return;
 			const settings = getSettings();
 			try {
-				if (path === '/library/home' && settings.enableLibraryButton) {
-					await injectHomeDropdowns(popup);
+				if (path === '/library/home' && settings.enableLibraryButton && false) {
+					// await injectHomeDropdowns(popup);
 				} else if (path.startsWith('/library/collection/') && settings.enableCollectionButton) {
 					await injectCollectionToggle(popup);
 					await injectSortiumGrid(popup);
