@@ -20,7 +20,8 @@ M.DEFAULTS = {
 }
 
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do
-	if M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
+	M.DEFAULTS.enabledStreams[stream.id] = true
+	if not stream.native and M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
 		M.DEFAULTS.lastUsedMetric = stream.metrics[1].id
 	end
 	for _, metric in ipairs(stream.metrics) do
@@ -43,6 +44,16 @@ function M.merge_defaults(user_settings)
 			result[k] = user_settings[k]
 		else
 			result[k] = v
+		end
+	end
+
+	if type(result.enabledStreams) ~= "table" then
+		result.enabledStreams = {}
+	end
+
+	for stream_id, is_enabled in pairs(M.DEFAULTS.enabledStreams) do
+		if result.enabledStreams[stream_id] == nil then
+			result.enabledStreams[stream_id] = is_enabled
 		end
 	end
 
