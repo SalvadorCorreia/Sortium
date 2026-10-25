@@ -4,7 +4,7 @@ import { SortiumDropdown } from './SortiumDropdown';
 import { SortiumDirectionToggle } from './SortiumDirectionToggle';
 import { SortiumStreamStatus } from './SortiumStreamStatus';
 import { SortiumCapsule } from './SortiumCapsule';
-import { getSettings, saveSettings } from '../services/settings';
+import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { sortApps, formatMetricValue, getMetricValue } from '../utils/sorting';
 import { SortiumContextMenuButton } from './SortiumContextMenu';
@@ -29,7 +29,13 @@ export function SortiumGrid({ children, popup }: SortiumGridProps) {
 	const yourCollectionModule = findModule((m) => m.YourCollection) || {};
 	const gridModule = findModule((m) => m.CSSGrid) || {};
 
-	const settings = getSettings();
+	const [settings, setSettingsState] = useState(() => getSettings());
+
+	useEffect(() => {
+		return subscribeSettings(() => {
+			setSettingsState({ ...getSettings() });
+		});
+	}, []);
 
 	const [isActive] = useState(settings.sortiumViewActive);
 	const [appIds, setAppIds] = useState<number[]>([]);

@@ -67,6 +67,11 @@ class QueueService {
 	private listeners: Set<() => void> = new Set();
 	private isDismounted = false;
 
+	private isFetchableStream(streamId: string): boolean {
+		const stream = getAvailableStreams().find((s) => s.id === streamId);
+		return !stream?.native;
+	}
+
 	private async getDelay(streamId: string): Promise<number> {
 		const streams = getAvailableStreams();
 		const stream = streams.find((s) => s.id === streamId);
@@ -185,6 +190,9 @@ class QueueService {
 	 */
 	public async enqueue(appIds: number[], streamOrMetric: string): Promise<{ queued: number; total: number }> {
 		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
+		if (!this.isFetchableStream(streamId)) {
+			return { queued: 0, total: appIds.length };
+		}
 		const stringIds = appIds.map(String);
 
 		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
@@ -494,7 +502,9 @@ class QueueService {
 		let maxRetryRemaining = 0;
 		const streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean; retryAfterSeconds?: number }> = {};
 
-		for (const streamId of streamIds) {
+		const fetchableIds = streamIds.filter((id) => this.isFetchableStream(id));
+
+		for (const streamId of fetchableIds) {
 			const pending = this.getPendingCount(streamId);
 			const initial = Math.max(this.syncTotals[streamId] || 0, pending);
 			const streamRunning = this.processingStreams.has(streamId) || this.recoveringStreams.has(streamId);
@@ -557,7 +567,9 @@ class QueueService {
 
 		logger.info(`QueueService: Library sync requested for streams [${streamIds.join(', ')}] across ${allAppIds.length} games.`);
 
-		for (const streamId of streamIds) {
+		const fetchableIds = streamIds.filter((id) => this.isFetchableStream(id));
+
+		for (const streamId of fetchableIds) {
 			const { queued } = await this.enqueue(allAppIds, streamId);
 			const pending = this.getPendingCount(streamId);
 			this.syncTotals[streamId] = pending;

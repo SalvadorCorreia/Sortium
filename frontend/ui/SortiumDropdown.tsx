@@ -1,6 +1,6 @@
 import { Dropdown, findModule } from '@steambrew/client';
-import { useState, useMemo } from 'react';
-import { getSettings, saveSettings, getAvailableStreams } from '../services/settings';
+import { useState, useMemo, useEffect } from 'react';
+import { getSettings, saveSettings, getAvailableStreams, subscribeSettings } from '../services/settings';
 
 interface SortiumDropdownProps {
 	variant?: 'default' | 'collection';
@@ -14,12 +14,18 @@ interface SortiumDropdownProps {
  * Updates user settings on selection and triggers sorting changes in parent views.
  */
 export function SortiumDropdown({ variant = 'default', onSortChange }: SortiumDropdownProps) {
-	const currentSettings = getSettings();
+	const [currentSettings, setCurrentSettings] = useState(() => getSettings());
 	const streams = getAvailableStreams();
+
+	useEffect(() => {
+		return subscribeSettings(() => {
+			setCurrentSettings({ ...getSettings() });
+		});
+	}, []);
 
 	const options = useMemo(() => {
 		return streams
-			.filter((stream) => currentSettings.enabledStreams[stream.id] !== false)
+			.filter((stream) => !stream.native && currentSettings.enabledStreams[stream.id] !== false)
 			.flatMap((stream) =>
 				stream.metrics
 					.filter((metric) => currentSettings.enabledMetrics[metric.id] !== false)

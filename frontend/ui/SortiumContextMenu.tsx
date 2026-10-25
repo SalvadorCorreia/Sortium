@@ -10,7 +10,7 @@ export function triggerGridMenu(e: React.MouseEvent | Event, onSortChange: (metr
 	const streams = getAvailableStreams();
 	const settings = getSettings();
 
-	const enabledStreams = streams.filter((stream) => settings.enabledStreams[stream.id]);
+	const enabledStreams = streams.filter((stream) => !stream.native && settings.enabledStreams[stream.id]);
 
 	const menuContent = (
 		<Menu label="Sortium Options">
