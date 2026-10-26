@@ -2,7 +2,7 @@ import { Millennium, definePlugin, IconsModule, sleep } from '@steambrew/client'
 import { initSettings, getSettings } from './services/settings';
 import SettingsMenu from './ui/SettingsMenu';
 import { logger } from './services/logger';
-import { /* injectHomeDropdowns, */ injectCollectionToggle, injectSortiumGrid, cleanupInjectors } from './utils/injectors';
+import { /* injectHomeDropdowns, */ injectCollectionToggle, injectSortiumGrid, injectNativeSortingDropdown, cleanupInjectors } from './utils/injectors';
 import { queueService } from './services/queue';
 
 declare global {
@@ -16,6 +16,8 @@ async function OnPopupCreation(popup: any) {
 	await initSettings();
 
 	if (popup.m_strName === 'SP Desktop_uid0') {
+		injectNativeSortingDropdown();
+
 		while (true) {
 			if (isDismounted) break;
 			try {
@@ -63,6 +65,12 @@ export default definePlugin(() => {
 	logger.info('Frontend plugin registered.');
 
 	isDismounted = false;
+
+	initSettings().then(() => {
+		if (!isDismounted) {
+			injectNativeSortingDropdown();
+		}
+	});
 
 	Millennium.AddWindowCreateHook!(OnPopupCreation);
 

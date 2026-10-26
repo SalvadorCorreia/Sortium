@@ -1,5 +1,29 @@
-import { getAvailableStreams, type DataStream } from '../services/settings';
+import { getAvailableStreams, getSettings, type DataStream } from '../services/settings';
 import type { AppState, LibrarySyncReport, SyncProgressReport } from '../services/queue';
+
+/**
+ * Filters Steam's native SortingDropDown options array based on active user settings.
+ * Consumes an array of dropdown option objects and returns a new filtered array.
+ * Preserves the first option as a fallback if all options are disabled to prevent UI crashes.
+ */
+export function filterNativeSortOptions(rgOptions: any[]): any[] {
+	if (!Array.isArray(rgOptions) || rgOptions.length === 0) {
+		return rgOptions;
+	}
+
+	const settings = getSettings();
+	const isSteamStreamEnabled = settings.enabledStreams['steam'] !== false;
+
+	const filtered = rgOptions.filter((opt) => {
+		if (opt && typeof opt.data === 'number') {
+			if (!isSteamStreamEnabled) return false;
+			return settings.enabledMetrics[`steam_${opt.data}`] !== false;
+		}
+		return true;
+	});
+
+	return filtered.length > 0 ? filtered : [rgOptions[0]];
+}
 
 /**
  * Resolves a specific metric value from a raw cache data object.
