@@ -6,7 +6,7 @@ import { SortiumToggle } from '../ui/SortiumToggle';
 import { SortiumGrid } from '../ui/SortiumGrid';
 import { waitForElement, waitForAllElements } from './dom';
 import { filterNativeSortOptions } from './sorting';
-import { subscribeSettings } from '../services/settings';
+import { getActiveSortiumMetric, setActiveSortiumMetric, subscribeSettings } from '../services/settings';
 import { logger } from '../services/logger';
 
 const injectedRoots = new Map<HTMLElement, any>();
@@ -41,10 +41,40 @@ function transformSortingDropdownVdom(vdom: any): any {
 
 	// Preserve original unfiltered options on a custom prop so re-enabled metrics can be restored without remounting.
 	const fullOptions = dropdownEl.props._sortiumFullOptions || dropdownEl.props.rgOptions;
+	const origOnChange = dropdownEl.props._sortiumOrigOnChange || dropdownEl.props.onChange;
 	const filteredOptions = filterNativeSortOptions(fullOptions);
+
+	const activeMetric = getActiveSortiumMetric();
+	if (activeMetric && !filteredOptions.some((opt) => opt.data === activeMetric)) {
+		setActiveSortiumMetric(null);
+	}
+
+	const desiredSelection = getActiveSortiumMetric() ?? dropdownEl.props.selectedOption;
+	const isSelectionValid = filteredOptions.some((opt) => opt.data === desiredSelection);
+	const resolvedSelection = isSelectionValid ? desiredSelection : filteredOptions[0]?.data;
+
+	const handleSortOptionChange = (option: any, ...args: any[]) => {
+		if (option && typeof option.data === 'string') {
+			setActiveSortiumMetric(option.data);
+			// Pass eSortBy = 1 (Alphabetical) to Steam so localStorage never stores custom string IDs.
+			if (typeof origOnChange === 'function') {
+				return origOnChange({ ...option, data: 1 }, ...args);
+			}
+			return;
+		}
+
+		setActiveSortiumMetric(null);
+		if (typeof origOnChange === 'function') {
+			return origOnChange(option, ...args);
+		}
+	};
+
 	children[1] = React.cloneElement(dropdownEl, {
 		rgOptions: filteredOptions,
+		selectedOption: resolvedSelection,
+		onChange: handleSortOptionChange,
 		_sortiumFullOptions: fullOptions,
+		_sortiumOrigOnChange: origOnChange,
 	});
 	return React.cloneElement(vdom, {}, ...children);
 }

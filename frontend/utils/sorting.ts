@@ -2,9 +2,9 @@ import { getAvailableStreams, getSettings, type DataStream } from '../services/s
 import type { AppState, LibrarySyncReport, SyncProgressReport } from '../services/queue';
 
 /**
- * Filters Steam's native SortingDropDown options array based on active user settings.
- * Consumes an array of dropdown option objects and returns a new filtered array.
- * Preserves the first option as a fallback if all options are disabled to prevent UI crashes.
+ * Filters Steam's native SortingDropDown options and appends enabled custom Sortium stream metrics.
+ * Consumes an array of native dropdown option objects and returns the combined, filtered options array.
+ * Preserves the first native option as a fallback if all options are disabled to prevent UI crashes.
  */
 export function filterNativeSortOptions(rgOptions: any[]): any[] {
 	if (!Array.isArray(rgOptions) || rgOptions.length === 0) {
@@ -12,17 +12,30 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 	}
 
 	const settings = getSettings();
+	const streams = getAvailableStreams();
 	const isSteamStreamEnabled = settings.enabledStreams['steam'] !== false;
 
-	const filtered = rgOptions.filter((opt) => {
+	const filteredNative = rgOptions.filter((opt) => {
 		if (opt && typeof opt.data === 'number') {
 			if (!isSteamStreamEnabled) return false;
 			return settings.enabledMetrics[`steam_${opt.data}`] !== false;
 		}
-		return true;
+		return false;
 	});
 
-	return filtered.length > 0 ? filtered : [rgOptions[0]];
+	const customOptions = streams
+		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
+		.flatMap((stream) =>
+			stream.metrics
+				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
+				.map((metric) => ({
+					label: `[${stream.tag || stream.name}] ${metric.name}`,
+					data: metric.id,
+				})),
+		);
+
+	const combined = [...filteredNative, ...customOptions];
+	return combined.length > 0 ? combined : [rgOptions[0]];
 }
 
 /**
