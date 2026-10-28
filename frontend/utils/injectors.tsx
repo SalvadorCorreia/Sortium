@@ -2,11 +2,14 @@ import React from 'react';
 import { Dropdown, findModule, findModuleExport } from '@steambrew/client';
 import { createRoot } from 'react-dom/client';
 import { SortiumDropdown } from '../ui/SortiumDropdown';
+import { SortiumDirectionToggle } from '../ui/SortiumDirectionToggle';
+import { SortiumStreamStatus } from '../ui/SortiumStreamStatus';
 import { SortiumToggle } from '../ui/SortiumToggle';
 import { SortiumGrid } from '../ui/SortiumGrid';
 import { waitForElement, waitForAllElements } from './dom';
-import { filterNativeSortOptions } from './sorting';
-import { getActiveSortiumMetric, setActiveSortiumMetric, subscribeSettings } from '../services/settings';
+import { filterNativeSortOptions, sortApps } from './sorting';
+import { getActiveSortiumMetric, getSettings, setActiveSortiumMetric, subscribeSettings } from '../services/settings';
+import { queueService } from '../services/queue';
 import { logger } from '../services/logger';
 
 const injectedRoots = new Map<HTMLElement, any>();
@@ -14,8 +17,12 @@ const injectedRoots = new Map<HTMLElement, any>();
 let origShowMenu: Function | null = null;
 let origBuildMenu: Function | null = null;
 let origSortingDropdownRender: Function | null = null;
+let origArraySort: ((compareFn?: (a: any, b: any) => number) => any[]) | null = null;
 let patchedSortingDropdownClass: any = null;
 let unsubscribeNativeDropdownSettings: (() => void) | null = null;
+let unsubscribeNativeQueueUpdates: (() => void) | null = null;
+let nativeQueueThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+let activeCollectionAppIds: number[] = [];
 const patchedSortingDropdownInstances = new Set<any>();
 
 function isSortingDropdownInstance(instance: any): boolean {
@@ -26,6 +33,37 @@ function isSortingDropdownInstance(instance: any): boolean {
 			typeof instance?.props?.strDropDownClassName === 'string' &&
 			instance.props.strDropDownClassName.includes(containerClass),
 	);
+}
+
+function forceUpdateNativeCollectionViews(): void {
+	for (const inst of Array.from(patchedSortingDropdownInstances)) {
+		try {
+			if (inst?.updater?.isMounted && !inst.updater.isMounted(inst)) {
+				patchedSortingDropdownInstances.delete(inst);
+				continue;
+			}
+			inst.forceUpdate?.();
+
+			// Walk up the React Fiber tree to re-render the parent collection view controller (xt -> Fe -> mt)
+			// because React's useState(1) in Re() bails out when eSortBy is already 1.
+			let curr = inst._reactInternals?.return || inst._reactInternalFiber?.return;
+			let passedGridController = false;
+			let depth = 0;
+			while (curr && depth < 30) {
+				if (curr.memoizedProps && Array.isArray(curr.memoizedProps.appOverviews)) {
+					passedGridController = true;
+					activeCollectionAppIds = curr.memoizedProps.appOverviews.map((item: any) => item.appid);
+				}
+				if (passedGridController && curr.stateNode && typeof curr.stateNode.forceUpdate === 'function') {
+					curr.stateNode.forceUpdate();
+				}
+				curr = curr.return;
+				depth++;
+			}
+		} catch {
+			patchedSortingDropdownInstances.delete(inst);
+		}
+	}
 }
 
 function transformSortingDropdownVdom(vdom: any): any {
@@ -44,12 +82,13 @@ function transformSortingDropdownVdom(vdom: any): any {
 	const origOnChange = dropdownEl.props._sortiumOrigOnChange || dropdownEl.props.onChange;
 	const filteredOptions = filterNativeSortOptions(fullOptions);
 
-	const activeMetric = getActiveSortiumMetric();
+	let activeMetric = getActiveSortiumMetric();
 	if (activeMetric && !filteredOptions.some((opt) => opt.data === activeMetric)) {
 		setActiveSortiumMetric(null);
+		activeMetric = null;
 	}
 
-	const desiredSelection = getActiveSortiumMetric() ?? dropdownEl.props.selectedOption;
+	const desiredSelection = activeMetric ?? dropdownEl.props.selectedOption;
 	const isSelectionValid = filteredOptions.some((opt) => opt.data === desiredSelection);
 	const resolvedSelection = isSelectionValid ? desiredSelection : filteredOptions[0]?.data;
 
@@ -58,34 +97,97 @@ function transformSortingDropdownVdom(vdom: any): any {
 			setActiveSortiumMetric(option.data);
 			// Pass eSortBy = 1 (Alphabetical) to Steam so localStorage never stores custom string IDs.
 			if (typeof origOnChange === 'function') {
-				return origOnChange({ ...option, data: 1 }, ...args);
+				origOnChange({ ...option, data: 1 }, ...args);
 			}
+			forceUpdateNativeCollectionViews();
 			return;
 		}
 
 		setActiveSortiumMetric(null);
 		if (typeof origOnChange === 'function') {
-			return origOnChange(option, ...args);
+			origOnChange(option, ...args);
 		}
+		forceUpdateNativeCollectionViews();
 	};
 
-	children[1] = React.cloneElement(dropdownEl, {
-		rgOptions: filteredOptions,
-		selectedOption: resolvedSelection,
-		onChange: handleSortOptionChange,
-		_sortiumFullOptions: fullOptions,
-		_sortiumOrigOnChange: origOnChange,
-	});
-	return React.cloneElement(vdom, {}, ...children);
+	const nextChildren: any[] = [
+		children[0],
+		React.cloneElement(dropdownEl, {
+			rgOptions: filteredOptions,
+			selectedOption: resolvedSelection,
+			onChange: handleSortOptionChange,
+			_sortiumFullOptions: fullOptions,
+			_sortiumOrigOnChange: origOnChange,
+		}),
+	];
+
+	if (activeMetric) {
+		const settings = getSettings();
+		const streamId = activeMetric.split('_')[0] || 'hltb';
+		const resolvedCount = activeCollectionAppIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
+
+		nextChildren.push(
+			<SortiumDirectionToggle
+				direction={settings.sortDirection || 'asc'}
+				onDirectionChange={() => {}}
+			/>,
+			<SortiumStreamStatus
+				activeMetric={activeMetric}
+				resolvedCount={resolvedCount}
+				totalCount={activeCollectionAppIds.length}
+			/>,
+		);
+	}
+
+	return React.cloneElement(vdom, {}, ...nextChildren);
 }
 
 /**
- * Hooks Steam's native SortingDropDown and Dropdown prototypes to filter sort options dynamically.
+ * Hooks Steam's native SortingDropDown, Dropdown, and collection sort pipeline to support Sortium metrics.
  * Takes no arguments and returns nothing.
- * Patches prototype methods in place and subscribes mounted instances to live settings updates.
+ * Patches prototype methods in place and subscribes mounted collection views to settings and queue updates.
  */
 export function injectNativeSortingDropdown() {
 	try {
+		if (!origArraySort) {
+			origArraySort = Array.prototype.sort;
+
+			Array.prototype.sort = function (this: any[], compareFn?: (a: any, b: any) => number): any[] {
+				if (
+					typeof compareFn === 'function' &&
+					(this.length === 0 || typeof this[0]?.appid === 'number') &&
+					compareFn.toString().includes('CompareSortAs')
+				) {
+					activeCollectionAppIds = this.map((item) => item.appid);
+					origArraySort!.call(this, compareFn);
+
+					const activeMetric = getActiveSortiumMetric();
+					if (activeMetric) {
+						const streamId = activeMetric.split('_')[0] || 'hltb';
+						if (activeCollectionAppIds.length > 0) {
+							// Defer queue enqueue out of React's render phase to prevent synchronous listener re-entrancy.
+							const idsToQueue = activeCollectionAppIds;
+							setTimeout(() => {
+								queueService.enqueue(idsToQueue, streamId);
+							}, 0);
+						}
+
+						const sorted = sortApps(
+							this,
+							activeMetric,
+							(appId) => queueService.getCachedData(streamId, appId),
+							getSettings().sortDirection || 'asc',
+						);
+						this.splice(0, this.length, ...sorted);
+					}
+
+					return this;
+				}
+
+				return origArraySort!.apply(this, arguments as any);
+			};
+		}
+
 		const dropdownProto = (Dropdown as any)?.prototype;
 
 		if (dropdownProto && typeof dropdownProto.ShowMenu === 'function' && !origShowMenu) {
@@ -166,16 +268,20 @@ export function injectNativeSortingDropdown() {
 
 		if (!unsubscribeNativeDropdownSettings) {
 			unsubscribeNativeDropdownSettings = subscribeSettings(() => {
-				for (const inst of Array.from(patchedSortingDropdownInstances)) {
-					try {
-						if (inst?.updater?.isMounted && !inst.updater.isMounted(inst)) {
-							patchedSortingDropdownInstances.delete(inst);
-							continue;
+				forceUpdateNativeCollectionViews();
+			});
+		}
+
+		if (!unsubscribeNativeQueueUpdates) {
+			unsubscribeNativeQueueUpdates = queueService.subscribe(() => {
+				if (!getActiveSortiumMetric()) return;
+				if (!nativeQueueThrottleTimer) {
+					nativeQueueThrottleTimer = setTimeout(() => {
+						nativeQueueThrottleTimer = null;
+						if (getActiveSortiumMetric()) {
+							forceUpdateNativeCollectionViews();
 						}
-						inst.forceUpdate?.();
-					} catch {
-						patchedSortingDropdownInstances.delete(inst);
-					}
+					}, 1000);
 				}
 			});
 		}
@@ -201,9 +307,22 @@ export function cleanupInjectors() {
 	injectedRoots.clear();
 
 	try {
+		if (nativeQueueThrottleTimer) {
+			clearTimeout(nativeQueueThrottleTimer);
+			nativeQueueThrottleTimer = null;
+		}
+		if (unsubscribeNativeQueueUpdates) {
+			unsubscribeNativeQueueUpdates();
+			unsubscribeNativeQueueUpdates = null;
+		}
 		if (unsubscribeNativeDropdownSettings) {
 			unsubscribeNativeDropdownSettings();
 			unsubscribeNativeDropdownSettings = null;
+		}
+
+		if (origArraySort) {
+			Array.prototype.sort = origArraySort;
+			origArraySort = null;
 		}
 
 		const dropdownProto = (Dropdown as any)?.prototype;
@@ -228,6 +347,7 @@ export function cleanupInjectors() {
 			} catch {}
 		}
 		patchedSortingDropdownInstances.clear();
+		activeCollectionAppIds = [];
 	} catch (err) {
 		logger.warn('Failed to restore native dropdown prototypes cleanly:', err);
 	}

@@ -76,11 +76,17 @@ export function getMetricValue(metric: string, data: any): number | null {
 }
 
 /**
- * Sorts an array of AppIDs based on a specified metric and direction.
+ * Sorts an array of AppIDs or AppOverview objects based on a specified metric and direction.
  * Consumes a dataResolver callback to fetch cached data and returns a new sorted array.
  */
-export function sortApps(appIds: number[], metricId: string, dataResolver: (appId: number) => any, direction: 'asc' | 'desc' = 'asc'): number[] {
-	const getSortValue = (appId: number) => {
+export function sortApps<T extends number | { appid: number }>(
+	items: T[],
+	metricId: string,
+	dataResolver: (appId: number) => any,
+	direction: 'asc' | 'desc' = 'asc',
+): T[] {
+	const getSortValue = (item: T) => {
+		const appId = typeof item === 'number' ? item : item.appid;
 		const data = dataResolver(appId);
 		const value = getMetricValue(metricId, data);
 		if (value === null || value === undefined) {
@@ -89,7 +95,7 @@ export function sortApps(appIds: number[], metricId: string, dataResolver: (appI
 		return value;
 	};
 
-	return [...appIds].sort((a, b) => {
+	return [...items].sort((a, b) => {
 		const valA = getSortValue(a);
 		const valB = getSortValue(b);
 
