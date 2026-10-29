@@ -8,14 +8,13 @@ import { SortiumToggle } from '../ui/SortiumToggle';
 import { SortiumGrid } from '../ui/SortiumGrid';
 import { waitForElement, waitForAllElements } from './dom';
 import { filterNativeSortOptions, sortApps } from './sorting';
-import { getActiveSortiumMetric, getSettings, setActiveSortiumMetric, subscribeSettings } from '../services/settings';
+import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { logger } from '../services/logger';
 
 const injectedRoots = new Map<HTMLElement, any>();
 
 let origShowMenu: Function | null = null;
-let origBuildMenu: Function | null = null;
 let origSortingDropdownRender: Function | null = null;
 let origArraySort: ((compareFn?: (a: any, b: any) => number) => any[]) | null = null;
 let patchedSortingDropdownClass: any = null;
@@ -82,32 +81,38 @@ function transformSortingDropdownVdom(vdom: any): any {
 	const origOnChange = dropdownEl.props._sortiumOrigOnChange || dropdownEl.props.onChange;
 	const filteredOptions = filterNativeSortOptions(fullOptions);
 
-	let activeMetric = getActiveSortiumMetric();
+	const settings = getSettings();
+	let activeMetric = settings.lastUsedMetric;
 	if (activeMetric && !filteredOptions.some((opt) => opt.data === activeMetric)) {
-		setActiveSortiumMetric(null);
-		activeMetric = null;
+		activeMetric = '';
+		void saveSettings({ ...settings, lastUsedMetric: '' });
 	}
 
-	const desiredSelection = activeMetric ?? dropdownEl.props.selectedOption;
+	const desiredSelection = activeMetric || dropdownEl.props.selectedOption;
 	const isSelectionValid = filteredOptions.some((opt) => opt.data === desiredSelection);
 	const resolvedSelection = isSelectionValid ? desiredSelection : filteredOptions[0]?.data;
 
 	const handleSortOptionChange = (option: any, ...args: any[]) => {
+		const currentSettings = getSettings();
 		if (option && typeof option.data === 'string') {
-			setActiveSortiumMetric(option.data);
+			void saveSettings({
+				...currentSettings,
+				lastUsedMetric: option.data,
+				sortDirection: option.defaultDir || currentSettings.sortDirection || 'asc',
+			});
 			// Pass eSortBy = 1 (Alphabetical) to Steam so localStorage never stores custom string IDs.
 			if (typeof origOnChange === 'function') {
 				origOnChange({ ...option, data: 1 }, ...args);
 			}
-			forceUpdateNativeCollectionViews();
 			return;
 		}
 
-		setActiveSortiumMetric(null);
+		if (currentSettings.lastUsedMetric) {
+			void saveSettings({ ...currentSettings, lastUsedMetric: '' });
+		}
 		if (typeof origOnChange === 'function') {
 			origOnChange(option, ...args);
 		}
-		forceUpdateNativeCollectionViews();
 	};
 
 	const nextChildren: any[] = [
@@ -122,15 +127,11 @@ function transformSortingDropdownVdom(vdom: any): any {
 	];
 
 	if (activeMetric) {
-		const settings = getSettings();
 		const streamId = activeMetric.split('_')[0] || 'hltb';
 		const resolvedCount = activeCollectionAppIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
 
 		nextChildren.push(
-			<SortiumDirectionToggle
-				direction={settings.sortDirection || 'asc'}
-				onDirectionChange={() => {}}
-			/>,
+			<SortiumDirectionToggle direction={settings.sortDirection || 'asc'} />,
 			<SortiumStreamStatus
 				activeMetric={activeMetric}
 				resolvedCount={resolvedCount}
@@ -161,7 +162,8 @@ export function injectNativeSortingDropdown() {
 					activeCollectionAppIds = this.map((item) => item.appid);
 					origArraySort!.call(this, compareFn);
 
-					const activeMetric = getActiveSortiumMetric();
+					const settings = getSettings();
+					const activeMetric = settings.lastUsedMetric;
 					if (activeMetric) {
 						const streamId = activeMetric.split('_')[0] || 'hltb';
 						if (activeCollectionAppIds.length > 0) {
@@ -176,7 +178,7 @@ export function injectNativeSortingDropdown() {
 							this,
 							activeMetric,
 							(appId) => queueService.getCachedData(streamId, appId),
-							getSettings().sortDirection || 'asc',
+							settings.sortDirection || 'asc',
 						);
 						this.splice(0, this.length, ...sorted);
 					}
@@ -202,28 +204,6 @@ export function injectNativeSortingDropdown() {
 					this.m_iMenuInstance = undefined;
 				}
 				return origShowMenu!.apply(this, args);
-			};
-		}
-
-		if (dropdownProto && typeof dropdownProto.BuildMenu === 'function' && !origBuildMenu) {
-			origBuildMenu = dropdownProto.BuildMenu;
-
-			dropdownProto.BuildMenu = function (this: any, ...args: any[]) {
-				const sourceOptions = this.props?._sortiumFullOptions || this.props?.rgOptions;
-				if (isSortingDropdownInstance(this) && Array.isArray(sourceOptions)) {
-					const origProps = this.props;
-					this.props = {
-						...origProps,
-						rgOptions: filterNativeSortOptions(sourceOptions),
-					};
-					try {
-						return origBuildMenu!.apply(this, args);
-					} finally {
-						this.props = origProps;
-					}
-				}
-
-				return origBuildMenu!.apply(this, args);
 			};
 		}
 
@@ -274,11 +254,11 @@ export function injectNativeSortingDropdown() {
 
 		if (!unsubscribeNativeQueueUpdates) {
 			unsubscribeNativeQueueUpdates = queueService.subscribe(() => {
-				if (!getActiveSortiumMetric()) return;
+				if (!getSettings().lastUsedMetric) return;
 				if (!nativeQueueThrottleTimer) {
 					nativeQueueThrottleTimer = setTimeout(() => {
 						nativeQueueThrottleTimer = null;
-						if (getActiveSortiumMetric()) {
+						if (getSettings().lastUsedMetric) {
 							forceUpdateNativeCollectionViews();
 						}
 					}, 1000);
@@ -329,10 +309,6 @@ export function cleanupInjectors() {
 		if (dropdownProto && origShowMenu) {
 			dropdownProto.ShowMenu = origShowMenu;
 			origShowMenu = null;
-		}
-		if (dropdownProto && origBuildMenu) {
-			dropdownProto.BuildMenu = origBuildMenu;
-			origBuildMenu = null;
 		}
 
 		if (patchedSortingDropdownClass?.prototype && origSortingDropdownRender) {

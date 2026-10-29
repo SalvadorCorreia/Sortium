@@ -21,9 +21,6 @@ M.DEFAULTS = {
 
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do
 	M.DEFAULTS.enabledStreams[stream.id] = true
-	if not stream.native and M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
-		M.DEFAULTS.lastUsedMetric = stream.metrics[1].id
-	end
 	for _, metric in ipairs(stream.metrics) do
 		M.DEFAULTS.enabledMetrics[metric.id] = true
 	end

@@ -2,6 +2,25 @@ import { getAvailableStreams, getSettings, type DataStream } from '../services/s
 import type { AppState, LibrarySyncReport, SyncProgressReport } from '../services/queue';
 
 /**
+ * Builds dropdown option entries for all enabled non-native Sortium stream metrics.
+ * Takes no arguments and returns an array of dropdown option objects with label, data, and defaultDir.
+ */
+export function getEnabledCustomMetricOptions(): { label: string; data: string; defaultDir: 'asc' | 'desc' }[] {
+	const settings = getSettings();
+	return getAvailableStreams()
+		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
+		.flatMap((stream) =>
+			stream.metrics
+				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
+				.map((metric) => ({
+					label: `[${stream.tag || stream.name}] ${metric.name}`,
+					data: metric.id,
+					defaultDir: metric.defaultDir,
+				})),
+		);
+}
+
+/**
  * Filters Steam's native SortingDropDown options and appends enabled custom Sortium stream metrics.
  * Consumes an array of native dropdown option objects and returns the combined, filtered options array.
  * Preserves the first native option as a fallback if all options are disabled to prevent UI crashes.
@@ -12,7 +31,6 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 	}
 
 	const settings = getSettings();
-	const streams = getAvailableStreams();
 	const isSteamStreamEnabled = settings.enabledStreams['steam'] !== false;
 
 	const filteredNative = rgOptions.filter((opt) => {
@@ -23,18 +41,7 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 		return false;
 	});
 
-	const customOptions = streams
-		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
-		.flatMap((stream) =>
-			stream.metrics
-				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
-				.map((metric) => ({
-					label: `[${stream.tag || stream.name}] ${metric.name}`,
-					data: metric.id,
-				})),
-		);
-
-	const combined = [...filteredNative, ...customOptions];
+	const combined = [...filteredNative, ...getEnabledCustomMetricOptions()];
 	return combined.length > 0 ? combined : [rgOptions[0]];
 }
 

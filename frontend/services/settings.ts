@@ -70,7 +70,6 @@ const ClearCacheRpc = callable<[], string>('ClearCache');
 
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
 let cachedStreams: DataStream[] = [];
-let activeSortiumMetric: string | null = null;
 const settingsListeners = new Set<() => void>();
 
 /**
@@ -139,41 +138,6 @@ export function getSettings(): PluginSettings {
  */
 export function getAvailableStreams(): DataStream[] {
 	return cachedStreams;
-}
-
-/**
- * Retrieves the currently active Sortium metric ID selected in Steam's native dropdown, or null if using native sort.
- * Takes no arguments and performs no network or IPC calls.
- */
-export function getActiveSortiumMetric(): string | null {
-	return activeSortiumMetric;
-}
-
-/**
- * Updates the active Sortium metric for native collection sorting and persists selection metadata when applicable.
- * Consumes a metric ID string or null, updating in-memory state and notifying subscribed listeners.
- */
-export function setActiveSortiumMetric(metricId: string | null): void {
-	if (activeSortiumMetric === metricId) return;
-	activeSortiumMetric = metricId;
-
-	if (metricId) {
-		let defaultDir: 'asc' | 'desc' = cachedSettings.sortDirection;
-		for (const stream of cachedStreams) {
-			const found = stream.metrics.find((m) => m.id === metricId);
-			if (found) {
-				defaultDir = found.defaultDir;
-				break;
-			}
-		}
-		void saveSettings({
-			...cachedSettings,
-			lastUsedMetric: metricId,
-			sortDirection: defaultDir,
-		});
-	} else {
-		notifySettingsListeners();
-	}
 }
 
 /**

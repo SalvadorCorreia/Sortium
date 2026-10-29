@@ -66,12 +66,6 @@ export default definePlugin(() => {
 
 	isDismounted = false;
 
-	initSettings().then(() => {
-		if (!isDismounted) {
-			injectNativeSortingDropdown();
-		}
-	});
-
 	Millennium.AddWindowCreateHook!(OnPopupCreation);
 
 	return {

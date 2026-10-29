@@ -1,6 +1,7 @@
 import { Dropdown, findModule } from '@steambrew/client';
 import { useState, useMemo, useEffect } from 'react';
-import { getSettings, saveSettings, getAvailableStreams, subscribeSettings } from '../services/settings';
+import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
+import { getEnabledCustomMetricOptions } from '../utils/sorting';
 
 interface SortiumDropdownProps {
 	variant?: 'default' | 'collection';
@@ -15,7 +16,6 @@ interface SortiumDropdownProps {
  */
 export function SortiumDropdown({ variant = 'default', onSortChange }: SortiumDropdownProps) {
 	const [currentSettings, setCurrentSettings] = useState(() => getSettings());
-	const streams = getAvailableStreams();
 
 	useEffect(() => {
 		return subscribeSettings(() => {
@@ -24,18 +24,8 @@ export function SortiumDropdown({ variant = 'default', onSortChange }: SortiumDr
 	}, []);
 
 	const options = useMemo(() => {
-		return streams
-			.filter((stream) => !stream.native && currentSettings.enabledStreams[stream.id] !== false)
-			.flatMap((stream) =>
-				stream.metrics
-					.filter((metric) => currentSettings.enabledMetrics[metric.id] !== false)
-					.map((metric) => ({
-						label: `[${stream.tag || stream.name}] ${metric.name}`,
-						data: metric.id,
-						defaultDir: metric.defaultDir as 'asc' | 'desc',
-					})),
-			);
-	}, [streams, currentSettings.enabledStreams, currentSettings.enabledMetrics]);
+		return getEnabledCustomMetricOptions();
+	}, [currentSettings.enabledStreams, currentSettings.enabledMetrics]);
 
 	const initialSelected = options.find((opt) => opt.data === currentSettings.lastUsedMetric)?.data || (options[0]?.data ?? '');
 	const [selected, setSelected] = useState<string>(initialSelected);

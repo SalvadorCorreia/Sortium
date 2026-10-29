@@ -3,7 +3,7 @@ import { getSettings, saveSettings } from '../services/settings';
 
 interface SortiumDirectionToggleProps {
 	direction: 'asc' | 'desc';
-	onDirectionChange: (newDir: 'asc' | 'desc') => void;
+	onDirectionChange?: (newDir: 'asc' | 'desc') => void;
 }
 
 /**
