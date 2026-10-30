@@ -13,10 +13,9 @@ let isDismounted = false;
 let historyUnsubscribe: (() => void) | null = null;
 
 async function OnPopupCreation(popup: any) {
-	await initSettings();
-
 	if (popup.m_strName === 'SP Desktop_uid0') {
 		injectNativeSortingDropdown();
+		await initSettings();
 
 		while (true) {
 			if (isDismounted) break;
@@ -31,6 +30,7 @@ async function OnPopupCreation(popup: any) {
 
 		if (isDismounted) return;
 
+		injectNativeSortingDropdown();
 		logger.info('Steam UI stable. Navigation listeners registered.');
 
 		const handleNavigation = async (path: string) => {
@@ -65,6 +65,8 @@ export default definePlugin(() => {
 	logger.info('Frontend plugin registered.');
 
 	isDismounted = false;
+	injectNativeSortingDropdown();
+	void initSettings();
 
 	Millennium.AddWindowCreateHook!(OnPopupCreation);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dropdown, findModule, findModuleExport } from '@steambrew/client';
+import { findModule, findModuleExport } from '@steambrew/client';
 import { createRoot } from 'react-dom/client';
 import { SortiumDropdown } from '../ui/SortiumDropdown';
 import { SortiumDirectionToggle } from '../ui/SortiumDirectionToggle';
@@ -7,32 +7,23 @@ import { SortiumStreamStatus } from '../ui/SortiumStreamStatus';
 import { SortiumToggle } from '../ui/SortiumToggle';
 import { SortiumGrid } from '../ui/SortiumGrid';
 import { waitForElement, waitForAllElements } from './dom';
-import { filterNativeSortOptions, sortApps } from './sorting';
+import { filterNativeSortOptions, formatMetricValue, getMetricValue, sortApps } from './sorting';
 import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { logger } from '../services/logger';
 
 const injectedRoots = new Map<HTMLElement, any>();
 
-let origShowMenu: Function | null = null;
 let origSortingDropdownRender: Function | null = null;
+let origCapsuleType: Function | null = null;
 let origArraySort: ((compareFn?: (a: any, b: any) => number) => any[]) | null = null;
 let patchedSortingDropdownClass: any = null;
+let patchedCapsuleMemo: any = null;
 let unsubscribeNativeDropdownSettings: (() => void) | null = null;
 let unsubscribeNativeQueueUpdates: (() => void) | null = null;
 let nativeQueueThrottleTimer: ReturnType<typeof setTimeout> | null = null;
 let activeCollectionAppIds: number[] = [];
 const patchedSortingDropdownInstances = new Set<any>();
-
-function isSortingDropdownInstance(instance: any): boolean {
-	const sortCssModule = findModule((m) => m.SortingDropDown && m.SortingDropDownContainer);
-	const containerClass = sortCssModule?.SortingDropDownContainer;
-	return Boolean(
-		containerClass &&
-			typeof instance?.props?.strDropDownClassName === 'string' &&
-			instance.props.strDropDownClassName.includes(containerClass),
-	);
-}
 
 function forceUpdateNativeCollectionViews(): void {
 	for (const inst of Array.from(patchedSortingDropdownInstances)) {
@@ -144,9 +135,9 @@ function transformSortingDropdownVdom(vdom: any): any {
 }
 
 /**
- * Hooks Steam's native SortingDropDown, Dropdown, and collection sort pipeline to support Sortium metrics.
+ * Hooks Steam's native SortingDropDown, Dropdown, capsule component, and collection sort pipeline to support Sortium metrics.
  * Takes no arguments and returns nothing.
- * Patches prototype methods in place and subscribes mounted collection views to settings and queue updates.
+ * Patches prototype and memo methods in place and subscribes mounted collection views to settings and queue updates.
  */
 export function injectNativeSortingDropdown() {
 	try {
@@ -190,23 +181,6 @@ export function injectNativeSortingDropdown() {
 			};
 		}
 
-		const dropdownProto = (Dropdown as any)?.prototype;
-
-		if (dropdownProto && typeof dropdownProto.ShowMenu === 'function' && !origShowMenu) {
-			origShowMenu = dropdownProto.ShowMenu;
-
-			dropdownProto.ShowMenu = function (this: any, ...args: any[]) {
-				// Steam caches m_iMenuInstance after the first open; clearing it forces BuildMenu to re-evaluate settings on every click.
-				if (isSortingDropdownInstance(this) && this.m_iMenuInstance) {
-					try {
-						this.m_iMenuInstance.SetOnHideCallback?.(undefined);
-					} catch {}
-					this.m_iMenuInstance = undefined;
-				}
-				return origShowMenu!.apply(this, args);
-			};
-		}
-
 		const SortingDropDownClass = findModuleExport(
 			(e: any) => typeof e === 'function' && e.prototype?.OnChange && e.toString().includes('onSortChangeCallback'),
 		);
@@ -244,6 +218,51 @@ export function injectNativeSortingDropdown() {
 					Object.defineProperty = origDefineProperty;
 				}
 			};
+		}
+
+		if (!origCapsuleType) {
+			const capsuleModule = findModule((m) =>
+				Object.values(m).some((v: any) => typeof v === 'function' && v.prototype?.BHasVerticalCapsule),
+			);
+			const capsuleMemo =
+				capsuleModule &&
+				(Object.values(capsuleModule).find(
+					(v: any) => typeof v === 'object' && v !== null && typeof v.type === 'function',
+				) as any);
+			const subscriptClass = findModule((m) => m.LibraryItemBoxSubscript && m.LibraryItemBox)?.LibraryItemBoxSubscript;
+
+			if (capsuleMemo?.type && subscriptClass) {
+				patchedCapsuleMemo = capsuleMemo;
+				origCapsuleType = capsuleMemo.type;
+
+				capsuleMemo.type = function (this: any, props: any, ...args: any[]) {
+					const vdom = origCapsuleType!.call(this, props, ...args);
+					const activeMetric = getSettings().lastUsedMetric;
+
+					// Context 1 (InCollection) restricts subscript badges to collection grid capsules.
+					if (
+						!activeMetric ||
+						props?.context !== 1 ||
+						typeof props?.app?.appid !== 'number' ||
+						!Array.isArray(vdom?.props?.children)
+					) {
+						return vdom;
+					}
+
+					const streamId = activeMetric.split('_')[0] || 'hltb';
+					const appId = props.app.appid;
+					const value = getMetricValue(activeMetric, queueService.getCachedData(streamId, appId));
+					const metricText = formatMetricValue(value, activeMetric, queueService.getEntryState(streamId, appId));
+
+					return React.cloneElement(
+						vdom,
+						{},
+						vdom.props.children[0],
+						<div className={subscriptClass}>{metricText}</div>,
+						...vdom.props.children.slice(1),
+					);
+				};
+			}
 		}
 
 		if (!unsubscribeNativeDropdownSettings) {
@@ -305,16 +324,16 @@ export function cleanupInjectors() {
 			origArraySort = null;
 		}
 
-		const dropdownProto = (Dropdown as any)?.prototype;
-		if (dropdownProto && origShowMenu) {
-			dropdownProto.ShowMenu = origShowMenu;
-			origShowMenu = null;
-		}
-
 		if (patchedSortingDropdownClass?.prototype && origSortingDropdownRender) {
 			patchedSortingDropdownClass.prototype.render = origSortingDropdownRender;
 			origSortingDropdownRender = null;
 			patchedSortingDropdownClass = null;
+		}
+
+		if (patchedCapsuleMemo && origCapsuleType) {
+			patchedCapsuleMemo.type = origCapsuleType;
+			origCapsuleType = null;
+			patchedCapsuleMemo = null;
 		}
 
 		for (const inst of patchedSortingDropdownInstances) {

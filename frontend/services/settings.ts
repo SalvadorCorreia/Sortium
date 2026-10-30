@@ -120,6 +120,8 @@ export async function initSettings(): Promise<void> {
 				logger.warn('Failed to load settings from backend:', res.error);
 			}
 		}
+
+		notifySettingsListeners();
 	} catch (error) {
 		logger.error('Initialization failure during IPC call:', error);
 	}

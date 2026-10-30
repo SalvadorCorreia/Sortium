@@ -127,7 +127,7 @@ class QueueService {
 	/**
 	 * Returns the cache lifecycle state for a specific game within a stream.
 	 */
-	public getEntryState(streamId: string, appId: number): string {
+	public getEntryState(streamId: string, appId: number): AppState {
 		return this.cache[streamId]?.[appId.toString()]?.state || 'MISSING';
 	}
 
