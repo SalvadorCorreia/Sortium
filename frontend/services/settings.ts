@@ -33,14 +33,10 @@ export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	enabledMetrics: Record<string, boolean>;
 	sortDirection: 'asc' | 'desc';
-	menuStyle: 'dropdown' | 'context';
 	lastUsedMetric: string;
-	sortiumViewActive: boolean;
 	softCacheDays: number;
 	hardCacheDays: number;
 	enableLogging: boolean;
-	enableLibraryButton: boolean;
-	enableCollectionButton: boolean;
 }
 
 interface BackendResponse<T> {
@@ -53,14 +49,10 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	enabledStreams: {},
 	enabledMetrics: {},
 	sortDirection: 'asc',
-	menuStyle: 'dropdown',
 	lastUsedMetric: '',
-	sortiumViewActive: false,
 	softCacheDays: 4,
 	hardCacheDays: 7,
 	enableLogging: false,
-	enableLibraryButton: true,
-	enableCollectionButton: true,
 };
 
 const GetAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
@@ -140,20 +132,6 @@ export function getSettings(): PluginSettings {
  */
 export function getAvailableStreams(): DataStream[] {
 	return cachedStreams;
-}
-
-/**
- * Finds and formats a display label for a given metric ID.
- * Returns the stream tag and metric name (e.g., "[HLTB] Main Story"), or a fallback string.
- */
-export function getMetricLabel(metricId: string): string {
-	for (const stream of cachedStreams) {
-		const metric = stream.metrics.find((m) => m.id === metricId);
-		if (metric) {
-			return `[${stream.tag || stream.name}] ${metric.name}`;
-		}
-	}
-	return 'Sortium';
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader, Dropdown } from '@steambrew/client';
+import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
 import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
@@ -7,7 +7,7 @@ import { formatProgressFeedback } from '../utils/sorting';
 
 /**
  * Renders the Sortium configuration interface in the Steam client settings.
- * Allows managing data stream toggles, metric visibility, layout styles, and cache operations.
+ * Allows managing data stream toggles, metric visibility, and cache operations.
  */
 export default function SettingsMenu() {
 	const [settings, setSettingsState] = useState<PluginSettings | null>(null);
@@ -96,32 +96,8 @@ export default function SettingsMenu() {
 		await saveSettings(newSettings);
 	};
 
-	const updateMenuStyle = async (value: string) => {
-		const newSettings = { ...settings, menuStyle: value as 'dropdown' | 'context' };
-		setSettingsState(newSettings);
-		await saveSettings(newSettings);
-	};
-
-	const toggleSortiumViewActive = async (checked: boolean) => {
-		const newSettings = { ...settings, sortiumViewActive: checked };
-		setSettingsState(newSettings);
-		await saveSettings(newSettings);
-	};
-
 	const toggleLogging = async (checked: boolean) => {
 		const newSettings = { ...settings, enableLogging: checked };
-		setSettingsState(newSettings);
-		await saveSettings(newSettings);
-	};
-
-	/* const toggleLibraryButton = async (checked: boolean) => {
-		const newSettings = { ...settings, enableLibraryButton: checked };
-		setSettingsState(newSettings);
-		await saveSettings(newSettings);
-	}; */
-
-	const toggleCollectionButton = async (checked: boolean) => {
-		const newSettings = { ...settings, enableCollectionButton: checked };
 		setSettingsState(newSettings);
 		await saveSettings(newSettings);
 	};
@@ -184,46 +160,6 @@ export default function SettingsMenu() {
 
 	return (
 		<>
-			<DialogControlsSection>
-				<DialogControlsSectionHeader>User Interface</DialogControlsSectionHeader>
-				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Choose where the Sortium sorting button should be injected within Steam.</div>
-				<Field label="Sorting Menu Style" description="How the sorting options are presented in the library." bottomSeparator="standard">
-					<div style={{ width: '100%', maxWidth: '250px', minWidth: 0 }}>
-						<Dropdown
-							rgOptions={[
-								{ label: 'Standard Dropdown', data: 'dropdown' },
-								{ label: 'Context Menu (Categories)', data: 'context' },
-							]}
-							selectedOption={settings.menuStyle}
-							onChange={(opt) => updateMenuStyle(opt.data)}
-						/>
-					</div>
-				</Field>
-				<ToggleField
-					label="Enable Sortium View by Default"
-					description="Automatically activate the custom Sortium grid when opening collections."
-					checked={settings.sortiumViewActive}
-					onChange={toggleSortiumViewActive}
-					bottomSeparator="standard"
-				/>
-				{/*
-				<ToggleField
-					label="Enable Library Button"
-					description="Show the sorting button on the main Library home page."
-					checked={settings.enableLibraryButton}
-					onChange={toggleLibraryButton}
-					bottomSeparator="standard"
-				/>
-				*/}
-				<ToggleField
-					label="Enable Collection Button"
-					description="Show the sorting button inside individual Collections."
-					checked={settings.enableCollectionButton}
-					onChange={toggleCollectionButton}
-					bottomSeparator="standard"
-				/>
-			</DialogControlsSection>
-
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Streams & Metrics</DialogControlsSectionHeader>
 				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Select which data sources and specific metrics to display in your sorting menu.</div>
@@ -397,7 +333,6 @@ export default function SettingsMenu() {
 					onChange={toggleLogging}
 					bottomSeparator="standard"
 				/>
-				<Field label="Sortium View State" description={settings.sortiumViewActive ? 'Active' : 'Inactive'} bottomSeparator="standard" />
 				<Field label="Last Used Metric" description={settings.lastUsedMetric || 'None'} bottomSeparator="none" />
 			</DialogControlsSection>
 		</>

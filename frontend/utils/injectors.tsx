@@ -1,18 +1,11 @@
 import React from 'react';
 import { findModule, findModuleExport } from '@steambrew/client';
-import { createRoot } from 'react-dom/client';
-import { SortiumDropdown } from '../ui/SortiumDropdown';
 import { SortiumDirectionToggle } from '../ui/SortiumDirectionToggle';
 import { SortiumStreamStatus } from '../ui/SortiumStreamStatus';
-import { SortiumToggle } from '../ui/SortiumToggle';
-import { SortiumGrid } from '../ui/SortiumGrid';
-import { waitForElement, waitForAllElements } from './dom';
 import { filterNativeSortOptions, formatMetricValue, getMetricValue, sortApps } from './sorting';
 import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { logger } from '../services/logger';
-
-const injectedRoots = new Map<HTMLElement, any>();
 
 let origSortingDropdownRender: Function | null = null;
 let origCapsuleType: Function | null = null;
@@ -290,21 +283,11 @@ export function injectNativeSortingDropdown() {
 }
 
 /**
- * Unmounts all React roots created by Sortium injectors and restores patched Steam prototypes.
+ * Restores patched Steam prototypes, memo components, and subscriptions registered by Sortium injectors.
  * Takes no arguments and returns nothing.
- * Cleans up injected UI elements and prototype hooks when tearing down or resetting views.
+ * Cleans up prototype hooks and listeners when tearing down or resetting views.
  */
 export function cleanupInjectors() {
-	for (const [node, root] of injectedRoots.entries()) {
-		try {
-			root.unmount();
-			node.remove();
-		} catch (err) {
-			logger.warn('Failed to clean up injected element:', err);
-		}
-	}
-	injectedRoots.clear();
-
 	try {
 		if (nativeQueueThrottleTimer) {
 			clearTimeout(nativeQueueThrottleTimer);
@@ -346,101 +329,4 @@ export function cleanupInjectors() {
 	} catch (err) {
 		logger.warn('Failed to restore native dropdown prototypes cleanly:', err);
 	}
-}
-
-/**
- * Injects Sortium dropdown menus into showcase section headers on the Steam library home view.
- * Consumes the Steam popup window object and returns a promise resolving once mounted.
- * Mounts interactive React dropdown roots into existing ShowcaseHeader DOM elements.
- */
-export async function injectHomeDropdowns(popup: any) {
-	const headers = await waitForAllElements(`div.${findModule((e) => e.ShowcaseHeader).ShowcaseHeader}`, popup.m_popup.document);
-
-	if (!headers || headers.length === 0) {
-		logger.warn('No ShowcaseHeader elements found. Home dropdowns were not injected.');
-		return;
-	}
-
-	headers.forEach((headerDiv) => {
-		const oldSortiumDropdown = headerDiv.querySelector('div.sortium-dropdown');
-		if (!oldSortiumDropdown) {
-			const sortiumDropdown = popup.m_popup.document.createElement('div');
-			sortiumDropdown.className = 'sortium-dropdown';
-
-			const sortiumRoot = createRoot(sortiumDropdown);
-			sortiumRoot.render(<SortiumDropdown />);
-			injectedRoots.set(sortiumDropdown, sortiumRoot);
-
-			headerDiv.insertBefore(sortiumDropdown, headerDiv.firstChild!.nextSibling!.nextSibling);
-		}
-	});
-}
-
-/**
- * Injects the Sortium view toggle button into the Steam collection header.
- * Consumes the Steam popup window object and returns a promise resolving once mounted.
- * Removes obsolete toggle elements if present and mounts a new SortiumToggle component into the header.
- */
-export async function injectCollectionToggle(popup: any) {
-	const headerModule = findModule((m) => m.Header && m.CollectionName && m.DynamicCollectionLabelAndButton);
-
-	if (!headerModule || !headerModule.Header) {
-		logger.warn('Could not find the specific Header module for the Collection Toggle.');
-		return;
-	}
-
-	const headerDiv = await waitForElement(`div.${headerModule.Header}`, popup.m_popup.document);
-	if (!headerDiv) {
-		logger.warn('Collection header DOM element not found after waiting. Toggle injection aborted.');
-		return;
-	}
-
-	const oldSortiumToggle = headerDiv.querySelector('div.sortium-toggle');
-	if (oldSortiumToggle) {
-		oldSortiumToggle.remove();
-	}
-	const sortiumToggle = popup.m_popup.document.createElement('div');
-	sortiumToggle.className = 'sortium-toggle';
-
-	const sortiumRoot = createRoot(sortiumToggle);
-	sortiumRoot.render(<SortiumToggle popup={popup} />);
-	injectedRoots.set(sortiumToggle, sortiumRoot);
-
-	headerDiv.insertBefore(sortiumToggle, headerDiv.firstChild);
-}
-
-/**
- * Injects the custom Sortium grid container adjacent to Steam's native collection grid.
- * Consumes the Steam popup window object and returns a promise resolving once mounted.
- * Inserts a dedicated DOM element rendering SortiumGrid into the collection grid parent container.
- */
-export async function injectSortiumGrid(popup: any) {
-	const gridModule = findModule((m) => m.GridWithControls);
-
-	if (!gridModule || !gridModule.GridWithControls) {
-		logger.warn('Could not find the GridWithControls module for Grid injection.');
-		return;
-	}
-
-	const oldSortiumGrid = popup.m_popup.document.querySelector('div.sortium-grid');
-	if (oldSortiumGrid) {
-		oldSortiumGrid.remove();
-	}
-
-	const nativeGrid = await waitForElement(`div.${gridModule.GridWithControls}`, popup.m_popup.document);
-	if (!nativeGrid || !nativeGrid.parentNode) {
-		logger.warn('Native grid or its parent node not found. Grid injection aborted.');
-		return;
-	}
-
-	const sortiumGridDiv = popup.m_popup.document.createElement('div');
-	sortiumGridDiv.className = 'sortium-grid';
-
-	sortiumGridDiv.style.height = '0px';
-
-	const gridRoot = createRoot(sortiumGridDiv);
-	gridRoot.render(<SortiumGrid popup={popup} />);
-	injectedRoots.set(sortiumGridDiv, gridRoot);
-
-	nativeGrid.parentNode.insertBefore(sortiumGridDiv, nativeGrid);
 }

@@ -9,14 +9,10 @@ M.AVAILABLE_STREAMS = require("streams.registry")
 M.DEFAULTS = {
 	enabledStreams = {},
 	enabledMetrics = {},
-	menuStyle = "dropdown",
 	lastUsedMetric = "",
-	sortiumViewActive = false,
 	softCacheDays = 4,
 	hardCacheDays = 7,
 	enableLogging = true,
-	enableLibraryButton = true,
-	enableCollectionButton = true,
 }
 
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do

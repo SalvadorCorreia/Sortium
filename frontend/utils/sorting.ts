@@ -1,24 +1,5 @@
 import { getAvailableStreams, getSettings, type DataStream } from '../services/settings';
-import type { AppState, LibrarySyncReport, SyncProgressReport } from '../services/queue';
-
-/**
- * Builds dropdown option entries for all enabled non-native Sortium stream metrics.
- * Takes no arguments and returns an array of dropdown option objects with label, data, and defaultDir.
- */
-export function getEnabledCustomMetricOptions(): { label: string; data: string; defaultDir: 'asc' | 'desc' }[] {
-	const settings = getSettings();
-	return getAvailableStreams()
-		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
-		.flatMap((stream) =>
-			stream.metrics
-				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
-				.map((metric) => ({
-					label: `[${stream.tag || stream.name}] ${metric.name}`,
-					data: metric.id,
-					defaultDir: metric.defaultDir,
-				})),
-		);
-}
+import type { AppState, SyncProgressReport } from '../services/queue';
 
 /**
  * Filters Steam's native SortingDropDown options and appends enabled custom Sortium stream metrics.
@@ -41,7 +22,19 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 		return false;
 	});
 
-	const combined = [...filteredNative, ...getEnabledCustomMetricOptions()];
+	const customOptions = getAvailableStreams()
+		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
+		.flatMap((stream) =>
+			stream.metrics
+				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
+				.map((metric) => ({
+					label: `[${stream.tag || stream.name}] ${metric.name}`,
+					data: metric.id,
+					defaultDir: metric.defaultDir,
+				})),
+		);
+
+	const combined = [...filteredNative, ...customOptions];
 	return combined.length > 0 ? combined : [rgOptions[0]];
 }
 
@@ -144,56 +137,6 @@ export function formatMetricValue(value: number | null, metricId: string, state:
 			}
 			return `${(value / 60).toFixed(1)} hrs`;
 	}
-}
-
-/**
- * Consumes a LibrarySyncReport and stream metadata, returning presentation-ready status text and color.
- */
-export function formatSyncFeedback(
-	report: LibrarySyncReport,
-	streams: DataStream[]
-): { text: string; color: string } {
-	if (report.totalGames === 0) {
-		return { text: 'No games found in library', color: '#ffc82c' };
-	}
-
-	const streamMap = new Map(streams.map((s) => [s.id, s.tag || s.name]));
-	const streamIds = Object.keys(report.streamResults);
-
-	if (report.totalQueued > 0) {
-		const singleTag = streamIds[0] ? (streamMap.get(streamIds[0]) || streamIds[0]) : '';
-		const details =
-			streamIds.length > 1
-				? ` (${streamIds.map((id) => `${streamMap.get(id) || id}: ${report.streamResults[id]?.queued || 0}`).join(', ')})`
-				: ` (${singleTag})`;
-
-		return {
-			text: `✓ Queued ${report.totalQueued} games${details}`,
-			color: '#a4d007',
-		};
-	}
-
-	// Fix sequential click bug: items already queued and in-flight
-	if (report.totalPending > 0) {
-		const singleTag = streamIds[0] ? (streamMap.get(streamIds[0]) || streamIds[0]) : '';
-		const details =
-			streamIds.length > 1
-				? ` (${streamIds.map((id) => `${streamMap.get(id) || id}: ${report.streamResults[id]?.pending || 0}`).join(', ')})`
-				: ` (${singleTag})`;
-
-		return {
-			text: `⟳ Sync in progress: ${report.totalPending} pending${details}`,
-			color: '#66c0f4',
-		};
-	}
-
-	const streamTags = streamIds.map((id) => streamMap.get(id) || id);
-	const label = streamTags.length > 0 ? ` (${streamTags.join(', ')})` : '';
-
-	return {
-		text: `✓ All ${report.totalGames} games up to date${label}`,
-		color: '#8f98a0',
-	};
 }
 
 /**
