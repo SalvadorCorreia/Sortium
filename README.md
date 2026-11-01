@@ -6,23 +6,22 @@ A Millennium plugin that adds advanced collection sorting for the Steam client.
 
 ## Features
 
+*   **Native Dropdown Integration:** Sort collections directly from Steam's native **Sort By** dropdown menu, and hide unwanted default Steam sort options.
 *   **HowLongToBeat Sorting:** Sort visible games by Main Story, Main + Extras, Completionist, or All Styles timeframes. Note: This data is sourced via the third-party Augmented Steam API (api.augmentedsteam.com).
 *   **Steam Hunters Sorting:** Sort visible games by Median Time, Fastest Time, Hunter Points, SteamDB Rating, or Achievement count.
 
 ## Usage
 
-1. Navigate to your Steam Library.
-2. Click the **Sortium Button** located next to the Library Name to enter the Sortium View.
-3. Use the **Sort By** dropdown on this page to select your preferred metric.
-4. Click the arrow icon next to the dropdown to toggle between ascending and descending order.
+1. Navigate to any Collection in your Steam Library.
+2. Open the native **Sort By** dropdown menu to select your preferred Sortium metric.
+3. Click the arrow icon next to the dropdown to toggle between ascending and descending order.
 
 ![Sortium View](screenshots/2026-08-18-121858.png)
 
 ## Configuration Options
 
 Sortium provides several customization options through the settings page. Users can customize:
-*   **User Interface:** Choose between a dropdown or context menu, enable the Sortium view by default, and toggle button visibility on the Collection page.
-*   **Data Streams & Metrics:** Enable or disable specific data providers and their individual metrics.
+*   **Data Streams & Metrics:** Enable or disable specific data providers (including Steam's native sort options) and their individual metrics.
 *   **Data Management:** Adjust Soft and Hard cache expiration days to control background data fetching. You can also manually Force Sync the library or clear the local cache.
 *   **Advanced & Debugging:** Toggle developer logging and view current internal states.
 ## Prerequisites

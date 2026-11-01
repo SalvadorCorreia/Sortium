@@ -150,38 +150,27 @@ Before patching any Steam module, three runtime invariants must be respected:
      ```
 - **Interception & Reactivity Mechanism**:
   - Because `mod11726.gQ` is a non-configurable Webpack getter, we do not patch `gQ` directly.
-  - Instead, we have two clean mutable seams:
-    1. **`AppOverview.prototype.sort_as` Override**: When `eSortBy` is `1` (`Alphabetical` / `Y.eL`), `gQ(1)` has `b = undefined` and delegates 100% of sorting to `appStore.CompareSortAs(m, T)` (which strictly reads `m.sort_as` and `T.sort_as`), while `Ue(be, 1)` cleanly returns `""` (a single flat section with zero `m.wT` assertion warnings!).
-    2. **Component-Level Sort (`xt.prototype.render` or `xe.type`)**: Pre-sort `appOverviews` or section children inside the mutable class/memo component and trigger a state/observable update when `queueService` resolves async metric batches.
+  - Instead, when a Sortium metric is selected, we pass `eSortBy = 1` (`Alphabetical`) to Steam so `Ue(be, 1)` returns `""` (a single flat section with zero assertion warnings) and `localStorage` remains valid.
+  - We hook `Array.prototype.sort` when `compareFn.toString().includes('CompareSortAs')`:
+    1. Run the native `Array.prototype.sort` first to establish `CompareSortAs` alphabetical order.
+    2. When `settings.lastUsedMetric` is active, enqueue the collection's AppIDs into `queueService` and reorder the array in-place via `sortApps` (leveraging V8's stable sort to preserve alphabetical tie-breaking).
+    3. Trigger collection controller re-renders via Fiber tree traversal (`forceUpdateNativeCollectionViews`) on settings updates and throttled `queueService` batch resolutions.
 
-### Pillar 3: Internal Metric Storage
-- **Target**: `Object.getPrototypeOf(window.appStore.GetAppOverviewByAppID(appid))` (`AppOverview.prototype`).
-- **Extension Mechanism**:
-  - Define configurable getters on `AppOverview.prototype`:
-    ```javascript
-    Object.defineProperty(AppOverview.prototype, 'sortiumMetric', {
-        get() { return queueService.getCachedData(activeStream, this.appid); },
-        configurable: true
-    });
-    ```
-  - Verified live via CDP: every `AppOverview` instance across `appStore` and `collectionStore` immediately inherits the getter.
+### Pillar 3: Persistent Selection State
+- **Target**: `PluginSettings.lastUsedMetric` and `PluginSettings.sortDirection` (`frontend/services/settings.ts` & `backend/settings.lua`).
+- **Mechanism**:
+  - `lastUsedMetric` is `""` when a native Steam sort option is active, or the metric ID (e.g., `"hltb_main"`) when a Sortium metric is active.
+  - Persisting `lastUsedMetric` and `sortDirection` through `saveSettings` notifies all subscribed listeners immediately while keeping Steam's own `AppGridDisplaySettings` set to `eSortBy: 1`.
 
 ### Pillar 4: Native Virtual DOM Capsule Badging
-- **Reference Target**: Module `66363`, export `TK` (`React.memo` wrapping MobX observer around internal function `sr`), and internal component `kt` (`LibraryItemBoxSubscript`).
+- **Reference Target**: Module `66363`, export `TK` (`React.memo` wrapping MobX observer around internal function `sr`), and CSS class `LibraryItemBoxSubscript`.
 - **Internal Structure**:
-  1. In Module `71395` (`xe`), Steam unwraps `zt.m_overview` so `H.TK` receives the raw `AppOverview` as `props.app`, plus `sortByType: we.eSortBy`:
+  1. In Module `71395` (`xe`), Steam unwraps `zt.m_overview` so `H.TK` receives the raw `AppOverview` as `props.app`, `context: H.aT` (`1` = `InCollection`), and `sortByType: we.eSortBy`:
      ```javascript
      st = we.children.map((zt, St) => Mt(zt.m_overview, Ne.childWidth, St));
      ```
-  2. Inside `mod66363.TK`, Steam already renders a native bottom pill component `kt` (`LibraryItemBoxSubscript`) based on `sortByType`:
-     ```javascript
-     return (0, e.jsxs)("div", {
-         id: ir,
-         className: (0, v.A)(Z().LibraryItemBoxSubscript, gt, jr ? Z().ClassAllAchieved : ""),
-         children: [jr && (0, e.jsx)(L.OiG, { fullcolor: !0 }), gr]
-     });
-     ```
+  2. Inside `mod66363.TK`, Steam renders a bottom pill `<div className={Z().LibraryItemBoxSubscript}>` between the capsule body fragment (`vdom.props.children[0]`) and the background glow (`vdom.props.children[1]`).
 - **Interception Mechanism**:
-  - `mod66363.TK` is a `React.memo` object whose `.type` property is `{ writable: true, configurable: true }`.
-  - Patching `TK.type` via Millennium `afterPatch(TK, 'type', ...)` allows injecting a `<div className={Z().LibraryItemBoxSubscript}>` (including native color classes `Z().MCGreen`, `Z().MCOrange`, `Z().MCRed`, or completionist ribbon `L.OiG`) into the capsule's Virtual DOM tree.
-  - Because the badge is rendered inside React's Virtual DOM using Steam's native `LibraryItemBoxSubscript` class, it tracks virtualized grid scrolling with zero flicker and 100% native visual fidelity.
+  - `mod66363.TK` is a `React.memo` object whose `.type` property is `{ writable: true, configurable: true }`, located dynamically via the module exporting `BHasVerticalCapsule`.
+  - Wrapping `capsuleMemo.type` clones the returned VDOM via `React.cloneElement` when `settings.lastUsedMetric` is active and `props.context === 1` (`InCollection`), inserting `<div className={subscriptClass}>{metricText}</div>`.
+  - Because the badge is rendered inside React's Virtual DOM using Steam's native `LibraryItemBoxSubscript` class, it tracks virtualized grid scrolling and 3D hover transforms with zero flicker.
