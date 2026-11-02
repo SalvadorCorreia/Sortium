@@ -79,7 +79,7 @@ export function getMetricValue(metric: string, data: any): number | null {
 	}
 
 	if (metric === 'hltb_main') return data.story ?? null;
-	if (metric === 'hltb_main_extra' || metric === 'hltb_extras') return data.extras ?? null;
+	if (metric === 'hltb_main_extra') return data.extras ?? null;
 	if (metric === 'hltb_completionist') return data.complete ?? null;
 
 	return null;

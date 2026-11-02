@@ -13,7 +13,7 @@ M.DEFAULTS = {
 	lastUsedMetric = "",
 	softCacheDays = 30,
 	hardCacheDays = 120,
-	enableLogging = true,
+	enableLogging = false,
 }
 
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do

@@ -1,46 +1,37 @@
 import { useEffect, useState } from 'react';
 import { Focusable, findModule } from '@steambrew/client';
-import { queueService } from '../services/queue';
 import { formatDurationSeconds } from '../utils/sorting';
 
 interface SortiumStreamStatusProps {
-	activeMetric: string;
 	resolvedCount: number;
 	totalCount: number;
+	isRateLimited: boolean;
+	retryAfterSeconds: number;
 }
 
 /**
  * Displays live synchronization progress and rate-limiting status indicators for active metrics.
- * Consumes the active metric ID, resolved cache count, and total game count.
- * Renders loading spinner animations or rate-limited warnings when operations are pending.
+ * Consumes resolved cache counts and rate-limit state props to render spinner or warning icons.
  */
-export function SortiumStreamStatus({ activeMetric, resolvedCount, totalCount }: SortiumStreamStatusProps) {
+export function SortiumStreamStatus({
+	resolvedCount,
+	totalCount,
+	isRateLimited,
+	retryAfterSeconds,
+}: SortiumStreamStatusProps) {
 	const iconButtonModule = findModule((m) => m.IconButton) || {};
-	const streamId = activeMetric.split('_')[0] || 'hltb';
-
-	const [isRateLimited, setIsRateLimited] = useState<boolean>(queueService.getStreamState(streamId) === 'RATE_LIMITED');
-	const [remainingSeconds, setRemainingSeconds] = useState<number>(queueService.getRateLimitRemaining(streamId));
+	const [remainingSeconds, setRemainingSeconds] = useState<number>(retryAfterSeconds);
 
 	useEffect(() => {
-		const update = () => {
-			const limited = queueService.getStreamState(streamId) === 'RATE_LIMITED';
-			setIsRateLimited(limited);
-			setRemainingSeconds(queueService.getRateLimitRemaining(streamId));
-		};
+		setRemainingSeconds(retryAfterSeconds);
+		if (!isRateLimited || retryAfterSeconds <= 0) return;
 
-		update();
-		const unsubscribe = queueService.subscribe(update);
 		const timer = setInterval(() => {
-			if (queueService.getStreamState(streamId) === 'RATE_LIMITED') {
-				setRemainingSeconds(queueService.getRateLimitRemaining(streamId));
-			}
+			setRemainingSeconds((prev) => Math.max(0, prev - 1));
 		}, 1000);
 
-		return () => {
-			unsubscribe();
-			clearInterval(timer);
-		};
-	}, [streamId]);
+		return () => clearInterval(timer);
+	}, [isRateLimited, retryAfterSeconds]);
 
 	if (isRateLimited) {
 		const retryText = remainingSeconds > 0 ? ` (retry in ${formatDurationSeconds(remainingSeconds)})` : '';

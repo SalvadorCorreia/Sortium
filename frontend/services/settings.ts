@@ -2,7 +2,7 @@ import { callable } from '@steambrew/client';
 import { logger, setLoggingEnabled } from './logger';
 
 /**
- * Defines a specific sortable metric (e.g., Main Story time or User Rating).
+ * Defines a specific sortable metric (e.g., Main Story time or SteamDB Rating).
  * Used by streams to define what data they expose to the frontend.
  */
 export interface Metric {
@@ -13,7 +13,7 @@ export interface Metric {
 }
 
 /**
- * Represents a data source stream (e.g., HowLongToBeat, SteamDB).
+ * Represents a data source stream (e.g., HowLongToBeat, Steam Hunters).
  * Contains metadata and a list of metrics that this stream provides.
  */
 export interface DataStream {

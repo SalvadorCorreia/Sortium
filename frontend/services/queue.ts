@@ -5,7 +5,6 @@ import { logger } from './logger';
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
 const fetchStreamData = callable<[{ args_json: string }], string>('FetchStreamData');
-const getAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
 
 declare global {
 	var appStore: any;
@@ -63,7 +62,6 @@ class QueueService {
 	private pendingSaves: Record<string, Record<string, any>> = {};
 	private saveTimers: Record<string, any> = {};
 
-	private streamDelays: Record<string, number> | null = null;
 	private listeners: Set<() => void> = new Set();
 	private isDismounted = false;
 
@@ -72,24 +70,9 @@ class QueueService {
 		return !stream?.native;
 	}
 
-	private async getDelay(streamId: string): Promise<number> {
-		const streams = getAvailableStreams();
-		const stream = streams.find((s) => s.id === streamId);
-		if (stream?.delay) return stream.delay;
-
-		if (!this.streamDelays) {
-			this.streamDelays = {};
-			try {
-				const raw = await getAvailableStreamsRpc();
-				const res = JSON.parse(raw);
-				if (res.success && res.data) {
-					res.data.forEach((s: any) => { this.streamDelays![s.id] = s.delay; });
-				}
-			} catch (e) {
-				logger.error('QueueService: Failed to fetch stream delays from IPC', e);
-			}
-		}
-		return this.streamDelays[streamId] || 2000;
+	private getDelay(streamId: string): number {
+		const stream = getAvailableStreams().find((s) => s.id === streamId);
+		return stream?.delay || 2000;
 	}
 
 	public subscribe(fn: () => void): () => void {
@@ -381,7 +364,7 @@ class QueueService {
 
 			this.notify();
 
-			const delayMs = await this.getDelay(streamId);
+			const delayMs = this.getDelay(streamId);
 			await new Promise((r) => setTimeout(r, delayMs));
 			if (this.isDismounted) break;
 		}
@@ -579,15 +562,6 @@ class QueueService {
 		}
 
 		return report;
-	}
-
-	/**
-	 * Triggers a full library sync for a single stream or metric.
-	 */
-	public async forceSyncLibrary(streamOrMetric: string): Promise<{ queued: number; total: number }> {
-		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
-		const report = await this.syncLibrary([streamId]);
-		return { queued: report.totalQueued, total: report.totalGames };
 	}
 }
 

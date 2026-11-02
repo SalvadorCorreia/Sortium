@@ -136,7 +136,16 @@ function transformSortingDropdownVdom(vdom: any): any {
 			_sortiumFullOptions: fullOptions,
 			_sortiumOrigOnChange: origOnChange,
 		}),
-		<SortiumDirectionToggle direction={settings.sortDirection || 'asc'} />,
+		<SortiumDirectionToggle
+			direction={settings.sortDirection || 'asc'}
+			onToggle={() => {
+				const current = getSettings();
+				void saveSettings({
+					...current,
+					sortDirection: (current.sortDirection || 'asc') === 'asc' ? 'desc' : 'asc',
+				});
+			}}
+		/>,
 	];
 
 	if (activeMetric) {
@@ -145,9 +154,10 @@ function transformSortingDropdownVdom(vdom: any): any {
 
 		nextChildren.push(
 			<SortiumStreamStatus
-				activeMetric={activeMetric}
 				resolvedCount={resolvedCount}
 				totalCount={activeCollectionAppIds.length}
+				isRateLimited={queueService.getStreamState(streamId) === 'RATE_LIMITED'}
+				retryAfterSeconds={queueService.getRateLimitRemaining(streamId)}
 			/>,
 		);
 	}
