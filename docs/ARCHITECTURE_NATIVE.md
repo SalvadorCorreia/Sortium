@@ -71,14 +71,14 @@ sequenceDiagram
     participant Capsule as TK.type (Native AppCapsule)
 
     User->>DD: Opens "Sort By" & selects Sortium metric
-    DD->>State: OnChange(metricId)
-    State->>View: Re-renders with active Sortium metric
+    DD->>State: Saves lastUsedMetric & passes eSortBy=5 (Last Played)
+    State->>View: Re-renders with eSortBy=5
     View->>Queue: Enqueues visible collection AppIDs & reads cached metrics
-    Queue-->>View: Supplies sorted AppOverview order (reactively updates as batches resolve)
-    View->>Grid: Passes single flat section (subSectionName: "") to virtual grid
-    Grid->>Capsule: Renders visible cells with app=AppOverview, sortByType=metricId
-    Capsule->>Capsule: Patched TK.type injects native LibraryItemBoxSubscript badge
-    Capsule-->>User: Displays native capsule with native-styled Sortium metric pill
+    Queue-->>View: Supplies sorted AppOverview order & section labels via GetLastPlayedSectionName()
+    View->>Grid: Passes grouped childSections (AppGridSection[]) to virtual grid
+    Grid->>Capsule: Renders visible cells with app=AppOverview, sortByType=5
+    Capsule->>Capsule: Patched TK.type passes sortByType=1 to suppress native date & injects LibraryItemBoxSubscript badge
+    Capsule-->>User: Displays native section shelves & capsules with Sortium metric pills
 ```
 
 ---
@@ -149,18 +149,19 @@ Before patching any Steam module, three runtime invariants must be respected:
      return "";
      ```
 - **Interception & Reactivity Mechanism**:
-  - Because `mod11726.gQ` is a non-configurable Webpack getter, we do not patch `gQ` directly.
-  - Instead, when a Sortium metric is selected, we pass `eSortBy = 1` (`Alphabetical`) to Steam so `Ue(be, 1)` returns `""` (a single flat section with zero assertion warnings) and `localStorage` remains valid.
+  - Because `mod11726.gQ` and `Ue` are non-configurable internal/module functions, we do not patch them directly.
+  - Instead, when a Sortium metric is selected, we pass `eSortBy = 5` (`Last Played`) to Steam. In `Ue(be, Ne)`, `case Y.CX` (`5`) is the only sort mode that delegates section header calculation to a prototype method on `AppOverview` (`be.GetLastPlayedSectionName()`), while keeping `localStorage` populated with a valid native enum ID.
   - We hook `Array.prototype.sort` when `compareFn.toString().includes('CompareSortAs')`:
-    1. Run the native `Array.prototype.sort` first to establish `CompareSortAs` alphabetical order.
-    2. When `settings.lastUsedMetric` is active, enqueue the collection's AppIDs into `queueService` and reorder the array in-place via `sortApps` (leveraging V8's stable sort to preserve alphabetical tie-breaking).
-    3. Trigger collection controller re-renders via Fiber tree traversal (`forceUpdateNativeCollectionViews`) on settings updates and throttled `queueService` batch resolutions.
+    1. Lazily patch `AppOverview.prototype.GetLastPlayedSectionName` on `this[0]` to return `formatMetricValue(..., 'section')` when a Sortium metric is active, or delegate to the original method when a native Steam sort is active.
+    2. Run the native `Array.prototype.sort` first to establish `CompareSortAs` tie-breaking order.
+    3. When `settings.lastUsedMetric` is active, enqueue the collection's AppIDs into `queueService` and reorder the array in-place via `sortApps`. When a native Steam sort is active and `settings.sortDirection` differs from the option's default direction, reverse the sorted array in-place via `this.reverse()`.
+    4. Trigger collection controller re-renders via Fiber tree traversal (`forceUpdateNativeCollectionViews`) on settings updates and throttled `queueService` batch resolutions.
 
 ### Pillar 3: Persistent Selection State
 - **Target**: `PluginSettings.lastUsedMetric` and `PluginSettings.sortDirection` (`frontend/services/settings.ts` & `backend/settings.lua`).
 - **Mechanism**:
   - `lastUsedMetric` is `""` when a native Steam sort option is active, or the metric ID (e.g., `"hltb_main"`) when a Sortium metric is active.
-  - Persisting `lastUsedMetric` and `sortDirection` through `saveSettings` notifies all subscribed listeners immediately while keeping Steam's own `AppGridDisplaySettings` set to `eSortBy: 1`.
+  - Persisting `lastUsedMetric` and `sortDirection` through `saveSettings` notifies all subscribed listeners immediately while keeping Steam's own `AppGridDisplaySettings` set to a valid native `eSortBy` (`5` when a Sortium metric is active).
 
 ### Pillar 4: Native Virtual DOM Capsule Badging
 - **Reference Target**: Module `66363`, export `TK` (`React.memo` wrapping MobX observer around internal function `sr`), and CSS class `LibraryItemBoxSubscript`.
@@ -172,5 +173,5 @@ Before patching any Steam module, three runtime invariants must be respected:
   2. Inside `mod66363.TK`, Steam renders a bottom pill `<div className={Z().LibraryItemBoxSubscript}>` between the capsule body fragment (`vdom.props.children[0]`) and the background glow (`vdom.props.children[1]`).
 - **Interception Mechanism**:
   - `mod66363.TK` is a `React.memo` object whose `.type` property is `{ writable: true, configurable: true }`, located dynamically via the module exporting `BHasVerticalCapsule`.
-  - Wrapping `capsuleMemo.type` clones the returned VDOM via `React.cloneElement` when `settings.lastUsedMetric` is active and `props.context === 1` (`InCollection`), inserting `<div className={subscriptClass}>{metricText}</div>`.
+  - Wrapping `capsuleMemo.type` passes `sortByType: 1` to `origCapsuleType` when `settings.lastUsedMetric` is active and `props.context === 1` (`InCollection`) so Steam suppresses its native `Last Played` date subscript, and clones the returned VDOM via `React.cloneElement` to insert `<div className={subscriptClass}>{metricText}</div>`.
   - Because the badge is rendered inside React's Virtual DOM using Steam's native `LibraryItemBoxSubscript` class, it tracks virtualized grid scrolling and 3D hover transforms with zero flicker.

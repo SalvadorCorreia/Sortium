@@ -6,14 +6,14 @@ A Millennium plugin that adds advanced collection sorting for the Steam client.
 
 ## Features
 
-*   **Native Dropdown Integration:** Sort collections directly from Steam's native **Sort By** dropdown menu, and hide unwanted default Steam sort options.
+*   **Native Dropdown & Shelf Integration:** Sort collections directly from Steam's native **Sort By** dropdown menu with automatic section dividers (shelves), ascending/descending direction toggling for both custom and built-in Steam sorts, and the ability to hide unwanted default sort options.
 *   **HowLongToBeat Sorting:** Sort visible games by Main Story, Main + Extras, Completionist, or All Styles timeframes. Note: This data is sourced via the third-party Augmented Steam API (api.augmentedsteam.com).
 *   **Steam Hunters Sorting:** Sort visible games by Median Time, Fastest Time, Hunter Points, SteamDB Rating, or Achievement count.
 
 ## Usage
 
 1. Navigate to any Collection in your Steam Library.
-2. Open the native **Sort By** dropdown menu to select your preferred Sortium metric.
+2. Open the native **Sort By** dropdown menu to select your preferred Sortium or Steam sort option.
 3. Click the arrow icon next to the dropdown to toggle between ascending and descending order.
 
 ![Sortium View](screenshots/2026-08-18-121858.png)
