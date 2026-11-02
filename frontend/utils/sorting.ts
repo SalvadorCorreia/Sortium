@@ -12,17 +12,27 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 	}
 
 	const settings = getSettings();
+	const streams = getAvailableStreams();
+	const steamStream = streams.find((stream) => stream.id === 'steam');
 	const isSteamStreamEnabled = settings.enabledStreams['steam'] !== false;
 
-	const filteredNative = rgOptions.filter((opt) => {
-		if (opt && typeof opt.data === 'number') {
-			if (!isSteamStreamEnabled) return false;
-			return settings.enabledMetrics[`steam_${opt.data}`] !== false;
-		}
-		return false;
-	});
+	const filteredNative = rgOptions
+		.filter((opt) => {
+			if (opt && typeof opt.data === 'number') {
+				if (!isSteamStreamEnabled) return false;
+				return settings.enabledMetrics[`steam_${opt.data}`] !== false;
+			}
+			return false;
+		})
+		.map((opt) => {
+			const metric = steamStream?.metrics.find((m) => m.id === `steam_${opt.data}`);
+			return {
+				...opt,
+				defaultDir: metric?.defaultDir || (opt.data === 1 ? 'asc' : 'desc'),
+			};
+		});
 
-	const customOptions = getAvailableStreams()
+	const customOptions = streams
 		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
 		.flatMap((stream) =>
 			stream.metrics

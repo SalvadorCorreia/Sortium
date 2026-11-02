@@ -16,7 +16,20 @@ let unsubscribeNativeDropdownSettings: (() => void) | null = null;
 let unsubscribeNativeQueueUpdates: (() => void) | null = null;
 let nativeQueueThrottleTimer: ReturnType<typeof setTimeout> | null = null;
 let activeCollectionAppIds: number[] = [];
+let activeNativeSort: number | null = null;
 const patchedSortingDropdownInstances = new Set<any>();
+
+function getActiveNativeSort(): number {
+	if (activeNativeSort !== null) return activeNativeSort;
+	try {
+		const raw = window.localStorage.getItem('AppGridDisplaySettings');
+		if (raw) {
+			const parsed = JSON.parse(raw);
+			if (typeof parsed?.eSortBy === 'number') return parsed.eSortBy;
+		}
+	} catch {}
+	return 1;
+}
 
 function forceUpdateNativeCollectionViews(): void {
 	for (const inst of Array.from(patchedSortingDropdownInstances)) {
@@ -76,6 +89,10 @@ function transformSortingDropdownVdom(vdom: any): any {
 	const isSelectionValid = filteredOptions.some((opt) => opt.data === desiredSelection);
 	const resolvedSelection = isSelectionValid ? desiredSelection : filteredOptions[0]?.data;
 
+	if (!activeMetric && typeof resolvedSelection === 'number') {
+		activeNativeSort = resolvedSelection;
+	}
+
 	const handleSortOptionChange = (option: any, ...args: any[]) => {
 		const currentSettings = getSettings();
 		if (option && typeof option.data === 'string') {
@@ -91,9 +108,14 @@ function transformSortingDropdownVdom(vdom: any): any {
 			return;
 		}
 
-		if (currentSettings.lastUsedMetric) {
-			void saveSettings({ ...currentSettings, lastUsedMetric: '' });
+		if (typeof option?.data === 'number') {
+			activeNativeSort = option.data;
 		}
+		void saveSettings({
+			...currentSettings,
+			lastUsedMetric: '',
+			sortDirection: option?.defaultDir || (option?.data === 1 ? 'asc' : 'desc'),
+		});
 		if (typeof origOnChange === 'function') {
 			origOnChange(option, ...args);
 		}
@@ -108,6 +130,7 @@ function transformSortingDropdownVdom(vdom: any): any {
 			_sortiumFullOptions: fullOptions,
 			_sortiumOrigOnChange: origOnChange,
 		}),
+		<SortiumDirectionToggle direction={settings.sortDirection || 'asc'} />,
 	];
 
 	if (activeMetric) {
@@ -115,7 +138,6 @@ function transformSortingDropdownVdom(vdom: any): any {
 		const resolvedCount = activeCollectionAppIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
 
 		nextChildren.push(
-			<SortiumDirectionToggle direction={settings.sortDirection || 'asc'} />,
 			<SortiumStreamStatus
 				activeMetric={activeMetric}
 				resolvedCount={resolvedCount}
@@ -165,6 +187,11 @@ export function injectNativeSortingDropdown() {
 							settings.sortDirection || 'asc',
 						);
 						this.splice(0, this.length, ...sorted);
+					} else {
+						const nativeDefaultDir = getActiveNativeSort() === 1 ? 'asc' : 'desc';
+						if ((settings.sortDirection || nativeDefaultDir) !== nativeDefaultDir) {
+							this.reverse();
+						}
 					}
 
 					return this;
@@ -326,6 +353,7 @@ export function cleanupInjectors() {
 		}
 		patchedSortingDropdownInstances.clear();
 		activeCollectionAppIds = [];
+		activeNativeSort = null;
 	} catch (err) {
 		logger.warn('Failed to restore native dropdown prototypes cleanly:', err);
 	}

@@ -9,6 +9,7 @@ M.AVAILABLE_STREAMS = require("streams.registry")
 M.DEFAULTS = {
 	enabledStreams = {},
 	enabledMetrics = {},
+	sortDirection = "asc",
 	lastUsedMetric = "",
 	softCacheDays = 4,
 	hardCacheDays = 7,
