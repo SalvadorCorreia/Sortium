@@ -50,8 +50,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	enabledMetrics: {},
 	sortDirection: 'asc',
 	lastUsedMetric: '',
-	softCacheDays: 4,
-	hardCacheDays: 7,
+	softCacheDays: 30,
+	hardCacheDays: 120,
 	enableLogging: false,
 };
 

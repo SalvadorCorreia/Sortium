@@ -16,7 +16,8 @@ A Millennium plugin that adds advanced collection sorting for the Steam client.
 2. Open the native **Sort By** dropdown menu to select your preferred Sortium or Steam sort option.
 3. Click the arrow icon next to the dropdown to toggle between ascending and descending order.
 
-![Sortium View](screenshots/2026-08-18-121858.png)
+![Sortium Collection View](screenshots/2026-11-02-180444.png)
+![Sortium Sort By Dropdown](screenshots/2026-11-02-180527.png)
 
 ## Configuration Options
 
@@ -24,6 +25,8 @@ Sortium provides several customization options through the settings page. Users 
 *   **Data Streams & Metrics:** Enable or disable specific data providers (including Steam's native sort options) and their individual metrics.
 *   **Data Management:** Adjust Soft and Hard cache expiration days to control background data fetching. You can also manually Force Sync the library or clear the local cache.
 *   **Advanced & Debugging:** Toggle developer logging and view current internal states.
+
+![Sortium Settings](screenshots/2026-11-02-180554.png)
 ## Prerequisites
 
 *   Steam Desktop Client

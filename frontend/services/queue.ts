@@ -202,8 +202,8 @@ class QueueService {
 		const toBatchLoad: string[] = [];
 		const settings = getSettings();
 		const now = Math.floor(Date.now() / 1000);
-		const softLimit = (settings.softCacheDays || 4) * 24 * 60 * 60;
-		const hardLimit = (settings.hardCacheDays || 7) * 24 * 60 * 60;
+		const softLimit = (settings.softCacheDays || 30) * 24 * 60 * 60;
+		const hardLimit = (settings.hardCacheDays || 120) * 24 * 60 * 60;
 
 		for (const id of stringIds) {
 			const entry = this.getEntry(streamId, id);
