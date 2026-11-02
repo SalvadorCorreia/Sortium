@@ -105,7 +105,7 @@ function transformSortingDropdownVdom(vdom: any): any {
 			void saveSettings({
 				...currentSettings,
 				lastUsedMetric: option.data,
-				sortDirection: option.defaultDir || currentSettings.sortDirection || 'asc',
+				sortDirection: option.defaultDir || 'desc',
 			});
 			// Pass eSortBy = 5 (Last Played) so Steam's ComputeChildSectionName delegates section headers to GetLastPlayedSectionName().
 			if (typeof origOnChange === 'function') {
@@ -211,7 +211,7 @@ export function injectNativeSortingDropdown() {
 							this,
 							activeMetric,
 							(appId) => queueService.getCachedData(streamId, appId),
-							settings.sortDirection || 'asc',
+							settings.sortDirection || 'desc',
 						);
 						this.splice(0, this.length, ...sorted);
 					} else {

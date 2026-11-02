@@ -93,7 +93,7 @@ export function sortApps<T extends number | { appid: number }>(
 	items: T[],
 	metricId: string,
 	dataResolver: (appId: number) => any,
-	direction: 'asc' | 'desc' = 'asc',
+	direction: 'asc' | 'desc' = 'desc',
 ): T[] {
 	const getSortValue = (item: T) => {
 		const appId = typeof item === 'number' ? item : item.appid;

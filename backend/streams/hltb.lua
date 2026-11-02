@@ -10,10 +10,10 @@ M.tag = "HLTB"
 M.delay = 2000
 
 M.metrics = {
-	{ id = "hltb_main", name = "Main Story", type = "time", defaultDir = "asc" },
-	{ id = "hltb_main_extra", name = "Main + Extra", type = "time", defaultDir = "asc" },
-	{ id = "hltb_completionist", name = "Completionist", type = "time", defaultDir = "asc" },
-	{ id = "hltb_all_styles", name = "All Styles", type = "time", defaultDir = "asc" },
+	{ id = "hltb_main", name = "Main Story", type = "time", defaultDir = "desc" },
+	{ id = "hltb_main_extra", name = "Main + Extra", type = "time", defaultDir = "desc" },
+	{ id = "hltb_completionist", name = "Completionist", type = "time", defaultDir = "desc" },
+	{ id = "hltb_all_styles", name = "All Styles", type = "time", defaultDir = "desc" },
 }
 
 --- Fetches completion time metrics for a given game from HowLongToBeat.
