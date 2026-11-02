@@ -115,13 +115,30 @@ export function sortApps<T extends number | { appid: number }>(
 }
 
 /**
- * Formats a raw metric number into a human-readable UI string (e.g., "12 hrs" or "85%").
- * Evaluates entry state to display "Loading..." or "No data" appropriately.
+ * Formats a raw metric number into a human-readable UI badge or section header string.
+ * Evaluates entry state and target mode ('badge' or 'section') to return the formatted label.
  */
-export function formatMetricValue(value: number | null, metricId: string, state: AppState = 'CACHED'): string {
-	if (state === 'ERROR_CACHE') return 'No data';
-	if (state === 'MISSING' || state === 'BATCHING' || state === 'QUEUED' || state === 'FETCHING') return 'Loading...';
-	if (value === null || value === undefined || value === Infinity || value === -Infinity) return 'No data';
+export function formatMetricValue(
+	value: number | null,
+	metricId: string,
+	state: AppState = 'CACHED',
+	mode: 'badge' | 'section' = 'badge',
+): string {
+	if (mode === 'section') {
+		if (
+			state !== 'CACHED' ||
+			value === null ||
+			value === undefined ||
+			value === Infinity ||
+			value === -Infinity
+		) {
+			return 'No Data';
+		}
+	} else {
+		if (state === 'ERROR_CACHE') return 'No data';
+		if (state === 'MISSING' || state === 'BATCHING' || state === 'QUEUED' || state === 'FETCHING') return 'Loading...';
+		if (value === null || value === undefined || value === Infinity || value === -Infinity) return 'No data';
+	}
 
 	let metricType: string = 'time';
 	const streams = getAvailableStreams();
@@ -130,6 +147,60 @@ export function formatMetricValue(value: number | null, metricId: string, state:
 		if (found) {
 			metricType = found.type;
 			break;
+		}
+	}
+
+	if (mode === 'section') {
+		switch (metricType) {
+			case 'rating':
+				return value >= 90
+					? 'Over 90%'
+					: value >= 80
+						? 'Over 80%'
+						: value >= 70
+							? 'Over 70%'
+							: value >= 50
+								? 'Over 50%'
+								: 'Under 50%';
+			case 'score':
+				return value >= 10000
+					? 'Over 10,000 Points'
+					: value >= 5000
+						? 'Over 5,000 Points'
+						: value >= 1000
+							? 'Over 1,000 Points'
+							: value >= 500
+								? 'Over 500 Points'
+								: value >= 100
+									? 'Over 100 Points'
+									: value > 0
+										? 'Less Than 100 Points'
+										: 'No Points';
+			case 'count':
+				return value >= 100
+					? 'Over 100 Achievements'
+					: value >= 50
+						? 'Over 50 Achievements'
+						: value >= 20
+							? 'Over 20 Achievements'
+							: value > 0
+								? 'Less Than 20 Achievements'
+								: 'No Achievements';
+			case 'time':
+			default:
+				return value >= 6000
+					? 'Over 100 Hours'
+					: value >= 3600
+						? 'Over 60 Hours'
+						: value >= 2400
+							? 'Over 40 Hours'
+							: value >= 1200
+								? 'Over 20 Hours'
+								: value >= 600
+									? 'Over 10 Hours'
+									: value >= 60
+										? 'Over 1 Hour'
+										: 'Less Than 1 Hour';
 		}
 	}
 

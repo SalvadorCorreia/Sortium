@@ -3,15 +3,17 @@ import { findModule, findModuleExport } from '@steambrew/client';
 import { SortiumDirectionToggle } from '../ui/SortiumDirectionToggle';
 import { SortiumStreamStatus } from '../ui/SortiumStreamStatus';
 import { filterNativeSortOptions, formatMetricValue, getMetricValue, sortApps } from './sorting';
-import { getSettings, saveSettings, subscribeSettings } from '../services/settings';
+import { getAvailableStreams, getSettings, saveSettings, subscribeSettings } from '../services/settings';
 import { queueService } from '../services/queue';
 import { logger } from '../services/logger';
 
 let origSortingDropdownRender: Function | null = null;
 let origCapsuleType: Function | null = null;
+let origGetLastPlayedSectionName: Function | null = null;
 let origArraySort: ((compareFn?: (a: any, b: any) => number) => any[]) | null = null;
 let patchedSortingDropdownClass: any = null;
 let patchedCapsuleMemo: any = null;
+let patchedAppOverviewProto: any = null;
 let unsubscribeNativeDropdownSettings: (() => void) | null = null;
 let unsubscribeNativeQueueUpdates: (() => void) | null = null;
 let nativeQueueThrottleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -80,9 +82,11 @@ function transformSortingDropdownVdom(vdom: any): any {
 
 	const settings = getSettings();
 	let activeMetric = settings.lastUsedMetric;
-	if (activeMetric && !filteredOptions.some((opt) => opt.data === activeMetric)) {
+	if (activeMetric && getAvailableStreams().length > 0 && !filteredOptions.some((opt) => opt.data === activeMetric)) {
 		activeMetric = '';
-		void saveSettings({ ...settings, lastUsedMetric: '' });
+		setTimeout(() => {
+			void saveSettings({ ...getSettings(), lastUsedMetric: '' });
+		}, 0);
 	}
 
 	const desiredSelection = activeMetric || dropdownEl.props.selectedOption;
@@ -91,6 +95,8 @@ function transformSortingDropdownVdom(vdom: any): any {
 
 	if (!activeMetric && typeof resolvedSelection === 'number') {
 		activeNativeSort = resolvedSelection;
+	} else if (activeMetric && dropdownEl.props.selectedOption !== 5 && typeof origOnChange === 'function') {
+		setTimeout(() => origOnChange({ data: 5 }), 0);
 	}
 
 	const handleSortOptionChange = (option: any, ...args: any[]) => {
@@ -101,9 +107,9 @@ function transformSortingDropdownVdom(vdom: any): any {
 				lastUsedMetric: option.data,
 				sortDirection: option.defaultDir || currentSettings.sortDirection || 'asc',
 			});
-			// Pass eSortBy = 1 (Alphabetical) to Steam so localStorage never stores custom string IDs.
+			// Pass eSortBy = 5 (Last Played) so Steam's ComputeChildSectionName delegates section headers to GetLastPlayedSectionName().
 			if (typeof origOnChange === 'function') {
-				origOnChange({ ...option, data: 1 }, ...args);
+				origOnChange({ ...option, data: 5 }, ...args);
 			}
 			return;
 		}
@@ -166,6 +172,27 @@ export function injectNativeSortingDropdown() {
 					compareFn.toString().includes('CompareSortAs')
 				) {
 					activeCollectionAppIds = this.map((item) => item.appid);
+					if (this.length > 0 && !origGetLastPlayedSectionName) {
+						const appProto = Object.getPrototypeOf(this[0]);
+						if (typeof appProto?.GetLastPlayedSectionName === 'function') {
+							patchedAppOverviewProto = appProto;
+							origGetLastPlayedSectionName = appProto.GetLastPlayedSectionName;
+							appProto.GetLastPlayedSectionName = function (this: any) {
+								const activeMetric = getSettings().lastUsedMetric;
+								if (!activeMetric) {
+									return origGetLastPlayedSectionName!.call(this);
+								}
+								const streamId = activeMetric.split('_')[0] || 'hltb';
+								const value = getMetricValue(activeMetric, queueService.getCachedData(streamId, this.appid));
+								return formatMetricValue(
+									value,
+									activeMetric,
+									queueService.getEntryState(streamId, this.appid),
+									'section',
+								);
+							};
+						}
+					}
 					origArraySort!.call(this, compareFn);
 
 					const settings = getSettings();
@@ -211,6 +238,7 @@ export function injectNativeSortingDropdown() {
 
 			SortingDropDownClass.prototype.render = function (this: any, ...args: any[]) {
 				const self = this;
+				patchedSortingDropdownInstances.add(self);
 				const origDefineProperty = Object.defineProperty;
 
 				// MobX @observer lazily locks instance.render as a non-writable own property on first render; intercept it so subsequent reactive renders stay wrapped.
@@ -256,8 +284,10 @@ export function injectNativeSortingDropdown() {
 				origCapsuleType = capsuleMemo.type;
 
 				capsuleMemo.type = function (this: any, props: any, ...args: any[]) {
-					const vdom = origCapsuleType!.call(this, props, ...args);
 					const activeMetric = getSettings().lastUsedMetric;
+					// Pass sortByType = 1 when a Sortium metric is active so Steam suppresses its native Last Played subscript.
+					const effectiveProps = activeMetric && props?.context === 1 ? { ...props, sortByType: 1 } : props;
+					const vdom = origCapsuleType!.call(this, effectiveProps, ...args);
 
 					// Context 1 (InCollection) restricts subscript badges to collection grid capsules.
 					if (
@@ -344,6 +374,12 @@ export function cleanupInjectors() {
 			patchedCapsuleMemo.type = origCapsuleType;
 			origCapsuleType = null;
 			patchedCapsuleMemo = null;
+		}
+
+		if (patchedAppOverviewProto && origGetLastPlayedSectionName) {
+			patchedAppOverviewProto.GetLastPlayedSectionName = origGetLastPlayedSectionName;
+			origGetLastPlayedSectionName = null;
+			patchedAppOverviewProto = null;
 		}
 
 		for (const inst of patchedSortingDropdownInstances) {
