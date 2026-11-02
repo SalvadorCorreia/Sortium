@@ -9,20 +9,15 @@ M.AVAILABLE_STREAMS = require("streams.registry")
 M.DEFAULTS = {
 	enabledStreams = {},
 	enabledMetrics = {},
-	menuStyle = "dropdown",
+	sortDirection = "asc",
 	lastUsedMetric = "",
-	sortiumViewActive = false,
-	softCacheDays = 4,
-	hardCacheDays = 7,
-	enableLogging = true,
-	enableLibraryButton = true,
-	enableCollectionButton = true,
+	softCacheDays = 30,
+	hardCacheDays = 120,
+	enableLogging = false,
 }
 
 for _, stream in ipairs(M.AVAILABLE_STREAMS) do
-	if M.DEFAULTS.lastUsedMetric == "" and #stream.metrics > 0 then
-		M.DEFAULTS.lastUsedMetric = stream.metrics[1].id
-	end
+	M.DEFAULTS.enabledStreams[stream.id] = true
 	for _, metric in ipairs(stream.metrics) do
 		M.DEFAULTS.enabledMetrics[metric.id] = true
 	end
@@ -43,6 +38,16 @@ function M.merge_defaults(user_settings)
 			result[k] = user_settings[k]
 		else
 			result[k] = v
+		end
+	end
+
+	if type(result.enabledStreams) ~= "table" then
+		result.enabledStreams = {}
+	end
+
+	for stream_id, is_enabled in pairs(M.DEFAULTS.enabledStreams) do
+		if result.enabledStreams[stream_id] == nil then
+			result.enabledStreams[stream_id] = is_enabled
 		end
 	end
 

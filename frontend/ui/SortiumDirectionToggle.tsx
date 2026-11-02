@@ -1,36 +1,20 @@
 import { Focusable, findModule } from '@steambrew/client';
-import { getSettings, saveSettings } from '../services/settings';
 
 interface SortiumDirectionToggleProps {
 	direction: 'asc' | 'desc';
-	onDirectionChange: (newDir: 'asc' | 'desc') => void;
+	onToggle: () => void;
 }
 
 /**
  * Renders a toggle button to switch between ascending and descending sort directions.
- * Consumes the current sort direction and a change callback.
- * Persists the updated direction to user settings and notifies parent listeners.
+ * Consumes the current sort direction and a toggle click handler.
  */
-export function SortiumDirectionToggle({ direction, onDirectionChange }: SortiumDirectionToggleProps) {
+export function SortiumDirectionToggle({ direction, onToggle }: SortiumDirectionToggleProps) {
 	const iconButtonModule = findModule((m) => m.IconButton) || {};
-
-	const toggleDirection = () => {
-		const newDir = direction === 'asc' ? 'desc' : 'asc';
-		const currentSettings = getSettings();
-
-		saveSettings({
-			...currentSettings,
-			sortDirection: newDir,
-		});
-
-		if (onDirectionChange) {
-			onDirectionChange(newDir);
-		}
-	};
 
 	return (
 		<Focusable
-			onClick={toggleDirection}
+			onClick={onToggle}
 			title={direction === 'asc' ? 'Sort Ascending' : 'Sort Descending'}
 			className={iconButtonModule.IconButton}
 			style={{

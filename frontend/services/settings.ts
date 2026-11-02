@@ -2,18 +2,18 @@ import { callable } from '@steambrew/client';
 import { logger, setLoggingEnabled } from './logger';
 
 /**
- * Defines a specific sortable metric (e.g., Main Story time or User Rating).
+ * Defines a specific sortable metric (e.g., Main Story time or SteamDB Rating).
  * Used by streams to define what data they expose to the frontend.
  */
 export interface Metric {
 	id: string;
 	name: string;
-	type: 'time' | 'rating' | 'score' | 'count';
+	type: 'time' | 'rating' | 'score' | 'count' | 'native';
 	defaultDir: 'asc' | 'desc';
 }
 
 /**
- * Represents a data source stream (e.g., HowLongToBeat, SteamDB).
+ * Represents a data source stream (e.g., HowLongToBeat, Steam Hunters).
  * Contains metadata and a list of metrics that this stream provides.
  */
 export interface DataStream {
@@ -21,6 +21,7 @@ export interface DataStream {
 	name: string;
 	tag: string;
 	delay?: number;
+	native?: boolean;
 	metrics: Metric[];
 }
 
@@ -32,14 +33,10 @@ export interface PluginSettings {
 	enabledStreams: Record<string, boolean>;
 	enabledMetrics: Record<string, boolean>;
 	sortDirection: 'asc' | 'desc';
-	menuStyle: 'dropdown' | 'context';
 	lastUsedMetric: string;
-	sortiumViewActive: boolean;
 	softCacheDays: number;
 	hardCacheDays: number;
 	enableLogging: boolean;
-	enableLibraryButton: boolean;
-	enableCollectionButton: boolean;
 }
 
 interface BackendResponse<T> {
@@ -52,14 +49,10 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	enabledStreams: {},
 	enabledMetrics: {},
 	sortDirection: 'asc',
-	menuStyle: 'dropdown',
 	lastUsedMetric: '',
-	sortiumViewActive: false,
-	softCacheDays: 4,
-	hardCacheDays: 7,
+	softCacheDays: 30,
+	hardCacheDays: 120,
 	enableLogging: false,
-	enableLibraryButton: true,
-	enableCollectionButton: true,
 };
 
 const GetAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
@@ -69,6 +62,29 @@ const ClearCacheRpc = callable<[], string>('ClearCache');
 
 let cachedSettings: PluginSettings = { ...DEFAULT_SETTINGS };
 let cachedStreams: DataStream[] = [];
+const settingsListeners = new Set<() => void>();
+
+/**
+ * Registers a listener callback invoked whenever plugin settings are updated.
+ * Consumes a zero-argument callback and returns an unsubscribe function.
+ * Adds the listener to the in-memory notification set.
+ */
+export function subscribeSettings(listener: () => void): () => void {
+	settingsListeners.add(listener);
+	return () => {
+		settingsListeners.delete(listener);
+	};
+}
+
+function notifySettingsListeners(): void {
+	settingsListeners.forEach((fn) => {
+		try {
+			fn();
+		} catch (err) {
+			logger.warn('Settings listener threw an error:', err);
+		}
+	});
+}
 
 /**
  * Fetches the available streams and user settings from the Lua backend via IPC.
@@ -96,6 +112,8 @@ export async function initSettings(): Promise<void> {
 				logger.warn('Failed to load settings from backend:', res.error);
 			}
 		}
+
+		notifySettingsListeners();
 	} catch (error) {
 		logger.error('Initialization failure during IPC call:', error);
 	}
@@ -117,20 +135,6 @@ export function getAvailableStreams(): DataStream[] {
 }
 
 /**
- * Finds and formats a display label for a given metric ID.
- * Returns the stream tag and metric name (e.g., "[HLTB] Main Story"), or a fallback string.
- */
-export function getMetricLabel(metricId: string): string {
-	for (const stream of cachedStreams) {
-		const metric = stream.metrics.find((m) => m.id === metricId);
-		if (metric) {
-			return `[${stream.tag || stream.name}] ${metric.name}`;
-		}
-	}
-	return 'Sortium';
-}
-
-/**
  * Saves updated plugin settings to the backend via IPC and updates the memory cache.
  * Returns true if the disk write succeeded, or false if it failed.
  */
@@ -139,6 +143,7 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	cachedSettings = settings;
 
 	setLoggingEnabled(settings.enableLogging);
+	notifySettingsListeners();
 	try {
 		const payload = { settings_json: JSON.stringify(settings) };
 		const responseJson = await SaveSettingsRpc(payload);
@@ -146,6 +151,7 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 		if (!responseJson) {
 			logger.warn('SaveSettingsRpc returned no response. Save aborted.');
 			cachedSettings = previousSettings;
+			notifySettingsListeners();
 			return false;
 		}
 
@@ -153,6 +159,7 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 		if (!res.success) {
 			logger.error('Failed to save settings to disk:', res.error);
 			cachedSettings = previousSettings;
+			notifySettingsListeners();
 			return false;
 		}
 
@@ -160,6 +167,7 @@ export async function saveSettings(settings: PluginSettings): Promise<boolean> {
 	} catch (error) {
 		logger.error('Exception during settings save operation:', error);
 		cachedSettings = previousSettings;
+		notifySettingsListeners();
 		return false;
 	}
 }

@@ -50,7 +50,9 @@ end
 --- Removes all chunked cache files from the filesystem.
 function ClearCache()
 	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
-		cache.clear_stream(stream.id)
+		if not stream.native then
+			cache.clear_stream(stream.id)
+		end
 	end
 	return json.encode({ success = true })
 end
@@ -112,6 +114,7 @@ function GetAvailableStreams()
 			name = stream.name,
 			tag = stream.tag or stream.name,
 			delay = stream.delay or 500,
+			native = stream.native == true,
 			metrics = safe_metrics,
 		})
 	end

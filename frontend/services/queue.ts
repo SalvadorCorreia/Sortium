@@ -5,7 +5,6 @@ import { logger } from './logger';
 const getCacheBatch = callable<[{ args_json: string }], string>('GetCacheBatch');
 const appendToCache = callable<[{ args_json: string }], string>('AppendToCache');
 const fetchStreamData = callable<[{ args_json: string }], string>('FetchStreamData');
-const getAvailableStreamsRpc = callable<[], string>('GetAvailableStreams');
 
 declare global {
 	var appStore: any;
@@ -63,28 +62,17 @@ class QueueService {
 	private pendingSaves: Record<string, Record<string, any>> = {};
 	private saveTimers: Record<string, any> = {};
 
-	private streamDelays: Record<string, number> | null = null;
 	private listeners: Set<() => void> = new Set();
 	private isDismounted = false;
 
-	private async getDelay(streamId: string): Promise<number> {
-		const streams = getAvailableStreams();
-		const stream = streams.find((s) => s.id === streamId);
-		if (stream?.delay) return stream.delay;
+	private isFetchableStream(streamId: string): boolean {
+		const stream = getAvailableStreams().find((s) => s.id === streamId);
+		return !stream?.native;
+	}
 
-		if (!this.streamDelays) {
-			this.streamDelays = {};
-			try {
-				const raw = await getAvailableStreamsRpc();
-				const res = JSON.parse(raw);
-				if (res.success && res.data) {
-					res.data.forEach((s: any) => { this.streamDelays![s.id] = s.delay; });
-				}
-			} catch (e) {
-				logger.error('QueueService: Failed to fetch stream delays from IPC', e);
-			}
-		}
-		return this.streamDelays[streamId] || 2000;
+	private getDelay(streamId: string): number {
+		const stream = getAvailableStreams().find((s) => s.id === streamId);
+		return stream?.delay || 2000;
 	}
 
 	public subscribe(fn: () => void): () => void {
@@ -122,7 +110,7 @@ class QueueService {
 	/**
 	 * Returns the cache lifecycle state for a specific game within a stream.
 	 */
-	public getEntryState(streamId: string, appId: number): string {
+	public getEntryState(streamId: string, appId: number): AppState {
 		return this.cache[streamId]?.[appId.toString()]?.state || 'MISSING';
 	}
 
@@ -185,6 +173,9 @@ class QueueService {
 	 */
 	public async enqueue(appIds: number[], streamOrMetric: string): Promise<{ queued: number; total: number }> {
 		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
+		if (!this.isFetchableStream(streamId)) {
+			return { queued: 0, total: appIds.length };
+		}
 		const stringIds = appIds.map(String);
 
 		if (!this.highPriority[streamId]) this.highPriority[streamId] = [];
@@ -194,8 +185,8 @@ class QueueService {
 		const toBatchLoad: string[] = [];
 		const settings = getSettings();
 		const now = Math.floor(Date.now() / 1000);
-		const softLimit = (settings.softCacheDays || 4) * 24 * 60 * 60;
-		const hardLimit = (settings.hardCacheDays || 7) * 24 * 60 * 60;
+		const softLimit = (settings.softCacheDays || 30) * 24 * 60 * 60;
+		const hardLimit = (settings.hardCacheDays || 120) * 24 * 60 * 60;
 
 		for (const id of stringIds) {
 			const entry = this.getEntry(streamId, id);
@@ -373,7 +364,7 @@ class QueueService {
 
 			this.notify();
 
-			const delayMs = await this.getDelay(streamId);
+			const delayMs = this.getDelay(streamId);
 			await new Promise((r) => setTimeout(r, delayMs));
 			if (this.isDismounted) break;
 		}
@@ -494,7 +485,9 @@ class QueueService {
 		let maxRetryRemaining = 0;
 		const streamProgress: Record<string, { pending: number; initial: number; isRateLimited: boolean; retryAfterSeconds?: number }> = {};
 
-		for (const streamId of streamIds) {
+		const fetchableIds = streamIds.filter((id) => this.isFetchableStream(id));
+
+		for (const streamId of fetchableIds) {
 			const pending = this.getPendingCount(streamId);
 			const initial = Math.max(this.syncTotals[streamId] || 0, pending);
 			const streamRunning = this.processingStreams.has(streamId) || this.recoveringStreams.has(streamId);
@@ -557,7 +550,9 @@ class QueueService {
 
 		logger.info(`QueueService: Library sync requested for streams [${streamIds.join(', ')}] across ${allAppIds.length} games.`);
 
-		for (const streamId of streamIds) {
+		const fetchableIds = streamIds.filter((id) => this.isFetchableStream(id));
+
+		for (const streamId of fetchableIds) {
 			const { queued } = await this.enqueue(allAppIds, streamId);
 			const pending = this.getPendingCount(streamId);
 			this.syncTotals[streamId] = pending;
@@ -567,15 +562,6 @@ class QueueService {
 		}
 
 		return report;
-	}
-
-	/**
-	 * Triggers a full library sync for a single stream or metric.
-	 */
-	public async forceSyncLibrary(streamOrMetric: string): Promise<{ queued: number; total: number }> {
-		const streamId = (streamOrMetric.includes('_') ? streamOrMetric.split('_')[0] : streamOrMetric) || 'hltb';
-		const report = await this.syncLibrary([streamId]);
-		return { queued: report.totalQueued, total: report.totalGames };
 	}
 }
 

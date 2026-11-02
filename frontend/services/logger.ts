@@ -1,4 +1,4 @@
-let loggingEnabled = true;
+let loggingEnabled = false;
 
 /**
  * Toggles the internal logging state for the frontend application.
