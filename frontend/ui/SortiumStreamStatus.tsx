@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Focusable, findModule } from '@steambrew/client';
+import { Focusable } from '@steambrew/client';
 import { formatDurationSeconds } from '../utils/sorting';
 
 interface SortiumStreamStatusProps {
@@ -7,19 +7,20 @@ interface SortiumStreamStatusProps {
 	totalCount: number;
 	isRateLimited: boolean;
 	retryAfterSeconds: number;
+	className?: string;
 }
 
 /**
  * Displays live synchronization progress and rate-limiting status indicators for active metrics.
- * Consumes resolved cache counts and rate-limit state props to render spinner or warning icons.
+ * Consumes resolved cache counts, rate-limit state props, and an optional native button class.
  */
 export function SortiumStreamStatus({
 	resolvedCount,
 	totalCount,
 	isRateLimited,
 	retryAfterSeconds,
+	className,
 }: SortiumStreamStatusProps) {
-	const iconButtonModule = findModule((m) => m.IconButton) || {};
 	const [remainingSeconds, setRemainingSeconds] = useState<number>(retryAfterSeconds);
 
 	useEffect(() => {
@@ -38,7 +39,7 @@ export function SortiumStreamStatus({
 		return (
 			<Focusable
 				title={`API Rate Limited - Stream suspended temporarily${retryText}`}
-				className={iconButtonModule.IconButton}
+				className={className}
 				style={{
 					display: 'flex',
 					alignItems: 'center',
@@ -69,7 +70,7 @@ export function SortiumStreamStatus({
 		return (
 			<Focusable
 				title={`Fetching data... (${resolvedCount}/${totalCount})`}
-				className={iconButtonModule.IconButton}
+				className={className}
 				style={{
 					display: 'flex',
 					alignItems: 'center',

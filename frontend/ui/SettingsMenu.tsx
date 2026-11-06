@@ -123,6 +123,7 @@ export default function SettingsMenu() {
 	const executeClearCache = async () => {
 		const success = await clearCache();
 		if (success) {
+			queueService.clearMemoryCache();
 			logger.info('Sortium Cache cleared successfully.');
 		} else {
 			logger.error('Failed to clear Sortium Cache.');
