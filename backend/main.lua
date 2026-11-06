@@ -5,6 +5,11 @@ local cache = require("cache")
 local settings = require("settings")
 local registry = require("streams.registry")
 
+local AVAILABLE_STREAMS_JSON = json.encode({
+	success = true,
+	data = registry.serialized,
+})
+
 -- ==============================================================================
 -- IPC Endpoints (Globally exposed for the React Frontend via `callable`)
 -- ==============================================================================
@@ -47,9 +52,9 @@ end
 
 --- Handles IPC requests to delete all cached chunk files across all registered streams.
 --- Takes no arguments and returns a JSON success status.
---- Removes all chunked cache files from the filesystem.
+--- Removes all chunked cache files from memory and the filesystem.
 function ClearCache()
-	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
+	for _, stream in ipairs(registry) do
 		if not stream.native then
 			cache.clear_stream(stream.id)
 		end
@@ -69,14 +74,7 @@ function FetchStreamData(args_json)
 		return json.encode({ success = false, error = "Invalid arguments" })
 	end
 
-	local target_stream = nil
-	for _, stream in ipairs(registry) do
-		if stream.id == args.stream_id then
-			target_stream = stream
-			break
-		end
-	end
-
+	local target_stream = registry.by_id[args.stream_id]
 	if not target_stream then
 		return json.encode({ success = false, error = "Stream not found" })
 	end
@@ -94,38 +92,12 @@ end
 -- ------------------------------------------------------------------------------
 
 --- Handles IPC requests to retrieve metadata and configurations for all registered streams.
---- Returns a JSON array containing stream IDs, names, delays, and exposed metrics.
+--- Returns a pre-encoded JSON array containing stream IDs, names, delays, and exposed metrics.
 function GetAvailableStreams()
-	local safe_streams = {}
-
-	for _, stream in ipairs(settings.AVAILABLE_STREAMS) do
-		local safe_metrics = {}
-		for _, metric in ipairs(stream.metrics) do
-			table.insert(safe_metrics, {
-				id = metric.id,
-				name = metric.name,
-				type = metric.type or "time",
-				defaultDir = metric.defaultDir or "desc",
-			})
-		end
-
-		table.insert(safe_streams, {
-			id = stream.id,
-			name = stream.name,
-			tag = stream.tag or stream.name,
-			delay = stream.delay or 500,
-			native = stream.native == true,
-			metrics = safe_metrics,
-		})
-	end
-
-	return json.encode({
-		success = true,
-		data = safe_streams,
-	})
+	return AVAILABLE_STREAMS_JSON
 end
 
---- Handles IPC requests to load plugin user configuration from disk.
+--- Handles IPC requests to load plugin user configuration from memory or disk.
 --- Returns a JSON object containing current user settings.
 function GetSettings()
 	return json.encode({
@@ -136,7 +108,7 @@ end
 
 --- Handles IPC requests to persist updated plugin settings to disk.
 --- Consumes a JSON string of settings, returning a JSON success or failure status.
---- Overwrites the local settings.json file on disk.
+--- Atomically overwrites the local settings.json file on disk.
 function SaveSettings(settings_json)
 	local ok, new_settings = pcall(json.decode, settings_json)
 	if not ok then

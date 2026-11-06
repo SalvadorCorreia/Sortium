@@ -138,6 +138,19 @@ class QueueService {
 		return state === 'CACHED' || state === 'ERROR_CACHE';
 	}
 
+	/**
+	 * Clears all in-memory cached entries and pending save buffers across streams.
+	 */
+	public clearMemoryCache(): void {
+		for (const timer of Object.values(this.saveTimers)) {
+			if (timer) clearTimeout(timer);
+		}
+		this.saveTimers = {};
+		this.pendingSaves = {};
+		this.cache = {};
+		this.notify();
+	}
+
 	private batchSave(streamId: string, appId: string, payload: any) {
 		if (!this.pendingSaves[streamId]) this.pendingSaves[streamId] = {};
 		this.pendingSaves[streamId][appId] = payload;

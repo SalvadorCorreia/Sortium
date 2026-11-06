@@ -48,55 +48,78 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 	return combined.length > 0 ? combined : [rgOptions[0]];
 }
 
+const HLTB_KEY_MAP: Record<string, string> = {
+	hltb_main: 'story',
+	hltb_main_extra: 'extras',
+	hltb_completionist: 'complete',
+};
+
+const SECTION_THRESHOLDS: Record<string, [number, string][]> = {
+	rating: [
+		[90, 'Over 90%'],
+		[80, 'Over 80%'],
+		[70, 'Over 70%'],
+		[50, 'Over 50%'],
+		[-Infinity, 'Under 50%'],
+	],
+	score: [
+		[10000, 'Over 10,000 Points'],
+		[5000, 'Over 5,000 Points'],
+		[1000, 'Over 1,000 Points'],
+		[500, 'Over 500 Points'],
+		[100, 'Over 100 Points'],
+		[1, 'Less Than 100 Points'],
+		[-Infinity, 'No Points'],
+	],
+	count: [
+		[100, 'Over 100 Achievements'],
+		[50, 'Over 50 Achievements'],
+		[20, 'Over 20 Achievements'],
+		[1, 'Less Than 20 Achievements'],
+		[-Infinity, 'No Achievements'],
+	],
+	time: [
+		[6000, 'Over 100 Hours'],
+		[3600, 'Over 60 Hours'],
+		[2400, 'Over 40 Hours'],
+		[1200, 'Over 20 Hours'],
+		[600, 'Over 10 Hours'],
+		[60, 'Over 1 Hour'],
+		[-Infinity, 'Less Than 1 Hour'],
+	],
+};
+
 /**
  * Resolves a specific metric value from a raw cache data object.
- * Returns the numeric value if found, handling fuzzy key matching, or null if missing.
+ * Returns the numeric value if found, handling stream prefix stripping and key aliases, or null if missing.
  */
 export function getMetricValue(metric: string, data: any): number | null {
 	if (!data) return null;
+	if (data[metric] != null) return data[metric];
 
-	if (data[metric] !== undefined && data[metric] !== null) {
-		return data[metric];
-	}
+	const aliasKey = HLTB_KEY_MAP[metric];
+	if (aliasKey && data[aliasKey] != null) return data[aliasKey];
 
-	const parts = metric.split('_');
-	if (parts.length > 1) {
-		parts.shift();
-		const strippedKey = parts.join('_');
-
-		if (data[strippedKey] !== undefined && data[strippedKey] !== null) {
-			return data[strippedKey];
-		}
-
-		const keys = Object.keys(data);
-		for (const key of keys) {
-			if (key.toLowerCase().startsWith(strippedKey.toLowerCase())) {
-				if (data[key] !== undefined && data[key] !== null) {
-					return data[key];
-				}
-			}
-		}
-	}
-
-	if (metric === 'hltb_main') return data.story ?? null;
-	if (metric === 'hltb_main_extra') return data.extras ?? null;
-	if (metric === 'hltb_completionist') return data.complete ?? null;
+	const strippedKey = metric.includes('_') ? metric.slice(metric.indexOf('_') + 1) : '';
+	if (strippedKey && data[strippedKey] != null) return data[strippedKey];
 
 	return null;
 }
 
 /**
- * Sorts an array of AppIDs or AppOverview objects based on a specified metric and direction.
- * Consumes a dataResolver callback to fetch cached data and returns a new sorted array.
+ * Sorts an array of AppIDs, AppOverviews, or section item wrappers based on a specified metric and direction.
+ * Consumes a dataResolver callback to fetch cached data and returns a new sorted array with alphabetical tie-breaking.
  */
-export function sortApps<T extends number | { appid: number }>(
+export function sortApps<
+	T extends number | { appid?: number; m_overview?: { appid: number; sort_as?: string }; sort_as?: string },
+>(
 	items: T[],
 	metricId: string,
 	dataResolver: (appId: number) => any,
 	direction: 'asc' | 'desc' = 'desc',
 ): T[] {
 	const getSortValue = (item: T) => {
-		const appId = typeof item === 'number' ? item : item.appid;
+		const appId = typeof item === 'number' ? item : (item.appid ?? item.m_overview?.appid ?? 0);
 		const data = dataResolver(appId);
 		const value = getMetricValue(metricId, data);
 		if (value === null || value === undefined) {
@@ -109,7 +132,14 @@ export function sortApps<T extends number | { appid: number }>(
 		const valA = getSortValue(a);
 		const valB = getSortValue(b);
 
-		if (valA === valB) return 0;
+		if (valA === valB) {
+			const sortAsA = typeof a === 'object' ? (a?.sort_as ?? a?.m_overview?.sort_as) : undefined;
+			const sortAsB = typeof b === 'object' ? (b?.sort_as ?? b?.m_overview?.sort_as) : undefined;
+			if (typeof sortAsA === 'string' && typeof sortAsB === 'string') {
+				return sortAsA.localeCompare(sortAsB);
+			}
+			return 0;
+		}
 		return direction === 'asc' ? valA - valB : valB - valA;
 	});
 }
@@ -124,99 +154,34 @@ export function formatMetricValue(
 	state: AppState = 'CACHED',
 	mode: 'badge' | 'section' = 'badge',
 ): string {
+	const isMissingValue = value === null || value === undefined || !Number.isFinite(value);
 	if (mode === 'section') {
-		if (
-			state !== 'CACHED' ||
-			value === null ||
-			value === undefined ||
-			value === Infinity ||
-			value === -Infinity
-		) {
-			return 'No Data';
-		}
+		if (state !== 'CACHED' || isMissingValue) return 'No Data';
 	} else {
-		if (state === 'ERROR_CACHE') return 'No data';
 		if (state === 'MISSING' || state === 'BATCHING' || state === 'QUEUED' || state === 'FETCHING') return 'Loading...';
-		if (value === null || value === undefined || value === Infinity || value === -Infinity) return 'No data';
+		if (state === 'ERROR_CACHE' || isMissingValue) return 'No data';
 	}
 
-	let metricType: string = 'time';
-	const streams = getAvailableStreams();
-	for (const stream of streams) {
-		const found = stream.metrics.find((m) => m.id === metricId);
-		if (found) {
-			metricType = found.type;
-			break;
-		}
-	}
+	const metricType =
+		getAvailableStreams()
+			.flatMap((s) => s.metrics)
+			.find((m) => m.id === metricId)?.type || 'time';
 
 	if (mode === 'section') {
-		switch (metricType) {
-			case 'rating':
-				return value >= 90
-					? 'Over 90%'
-					: value >= 80
-						? 'Over 80%'
-						: value >= 70
-							? 'Over 70%'
-							: value >= 50
-								? 'Over 50%'
-								: 'Under 50%';
-			case 'score':
-				return value >= 10000
-					? 'Over 10,000 Points'
-					: value >= 5000
-						? 'Over 5,000 Points'
-						: value >= 1000
-							? 'Over 1,000 Points'
-							: value >= 500
-								? 'Over 500 Points'
-								: value >= 100
-									? 'Over 100 Points'
-									: value > 0
-										? 'Less Than 100 Points'
-										: 'No Points';
-			case 'count':
-				return value >= 100
-					? 'Over 100 Achievements'
-					: value >= 50
-						? 'Over 50 Achievements'
-						: value >= 20
-							? 'Over 20 Achievements'
-							: value > 0
-								? 'Less Than 20 Achievements'
-								: 'No Achievements';
-			case 'time':
-			default:
-				return value >= 6000
-					? 'Over 100 Hours'
-					: value >= 3600
-						? 'Over 60 Hours'
-						: value >= 2400
-							? 'Over 40 Hours'
-							: value >= 1200
-								? 'Over 20 Hours'
-								: value >= 600
-									? 'Over 10 Hours'
-									: value >= 60
-										? 'Over 1 Hour'
-										: 'Less Than 1 Hour';
-		}
+		const tiers = SECTION_THRESHOLDS[metricType] ?? SECTION_THRESHOLDS.time!;
+		return tiers.find(([min]) => value! >= min)?.[1] ?? 'No Data';
 	}
 
 	switch (metricType) {
 		case 'rating':
-			return `${value.toFixed(1)}%`;
+			return `${value!.toFixed(1)}%`;
 		case 'score':
-			return `${Math.round(value).toLocaleString()} points`;
+			return `${Math.round(value!).toLocaleString()} points`;
 		case 'count':
-			return `${Math.round(value).toLocaleString()} achievements`;
+			return `${Math.round(value!).toLocaleString()} achievements`;
 		case 'time':
 		default:
-			if (value < 120) {
-				return `${Math.round(value)} mins`;
-			}
-			return `${(value / 60).toFixed(1)} hrs`;
+			return value! < 120 ? `${Math.round(value!)} mins` : `${(value! / 60).toFixed(1)} hrs`;
 	}
 }
 

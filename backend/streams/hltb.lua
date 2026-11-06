@@ -1,6 +1,4 @@
-local http = require("http")
-local json = require("json")
-local logger = require("logger")
+local stream_http = require("streams.http")
 
 local M = {}
 
@@ -16,57 +14,17 @@ M.metrics = {
 	{ id = "hltb_all_styles", name = "All Styles", type = "time", defaultDir = "desc" },
 }
 
+local function build_url(numeric_id)
+	return "https://api.augmentedsteam.com/app/" .. tostring(numeric_id) .. "/v2"
+end
+
 --- Fetches completion time metrics for a given game from HowLongToBeat.
 --- Consumes a Steam AppID and returns a table containing the parsed times or an error state.
 --- Performs a blocking HTTP request to the Augmented Steam API.
 function M.fetch(app_id)
-	local numeric_id = tonumber(app_id)
-	if not numeric_id then
-		return { data = nil, error = true, details = "Invalid App ID", status = 400 }
-	end
-
-	local url = "https://api.augmentedsteam.com/app/" .. tostring(numeric_id) .. "/v2"
-
-	local options = {
-		timeout = 10000,
-		verify_ssl = true,
-		user_agent = "Sortium-Plugin/1.0",
-	}
-
-	local ok, response = pcall(http.request, url, options)
-
-	if not ok then
-		local err_msg = "HTTP pcall failed: " .. tostring(response)
-		logger:error("[HLTB] " .. err_msg)
-		return { data = nil, error = true, details = err_msg, status = 0 }
-	end
-
-	if not response then
-		local err_msg = "No response object returned from HTTP request"
-		logger:error("[HLTB] " .. err_msg)
-		return { data = nil, error = true, details = err_msg, status = 0 }
-	end
-
-	if response.status ~= 200 then
-		local err_msg = "Bad HTTP Status: " .. tostring(response.status) .. " | Body: " .. tostring(response.body)
-		logger:error("[HLTB] " .. err_msg)
-		local retry_after = nil
-		if response.headers then
-			for k, v in pairs(response.headers) do
-				if string.lower(tostring(k)) == "retry-after" then
-					retry_after = tonumber(v)
-					break
-				end
-			end
-		end
-		return { data = nil, error = true, details = err_msg, status = response.status, retry_after = retry_after }
-	end
-
-	local parsed_ok, body = pcall(json.decode, response.body)
-	if not parsed_ok then
-		local err_msg = "JSON decode failed. Error: " .. tostring(body) .. " | Raw Body: " .. tostring(response.body)
-		logger:error("[HLTB] " .. err_msg)
-		return { data = nil, error = true, details = err_msg, status = response.status }
+	local body, err_res = stream_http.fetch_json(M.tag, app_id, build_url)
+	if err_res then
+		return err_res
 	end
 
 	local result_data = body.hltb
@@ -95,7 +53,7 @@ function M.fetch(app_id)
 		end
 	end
 
-	return { data = result_data or nil, error = false, status = response.status }
+	return { data = result_data or nil, error = false, status = 200 }
 end
 
 return M
