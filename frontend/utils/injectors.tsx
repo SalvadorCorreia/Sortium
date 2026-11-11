@@ -75,24 +75,28 @@ function forceUpdateNativeCollectionViews(): void {
 	}
 }
 
-function syncCollectionGridSections(dropdownInstance: any, activeMetric: string): void {
+function findCollectionGridFiber(dropdownInstance: any): any {
 	let curr = dropdownInstance?._reactInternals?.return || dropdownInstance?._reactInternalFiber?.return;
-	let zeFiber: any = null;
+	let fallbackGridFiber: any = null;
 
 	for (let depth = 0; curr && depth < 10; depth++, curr = curr.return) {
 		// Check both current and workInProgress (alternate) fiber trees for the unprocessed childSections array created in this render pass.
 		const sectionsA = curr.sibling?.pendingProps?.childSections;
 		const sectionsB = curr.alternate?.sibling?.pendingProps?.childSections;
-		if (Array.isArray(sectionsA) && !(sectionsA as any)._sortiumProcessed) {
-			zeFiber = curr.sibling;
-			break;
+		if (Array.isArray(sectionsA)) {
+			if (!(sectionsA as any)._sortiumProcessed) return curr.sibling;
+			fallbackGridFiber = fallbackGridFiber || curr.sibling;
 		}
-		if (Array.isArray(sectionsB) && !(sectionsB as any)._sortiumProcessed) {
-			zeFiber = curr.alternate.sibling;
-			break;
+		if (Array.isArray(sectionsB)) {
+			if (!(sectionsB as any)._sortiumProcessed) return curr.alternate.sibling;
+			fallbackGridFiber = fallbackGridFiber || curr.alternate.sibling;
 		}
 	}
 
+	return fallbackGridFiber;
+}
+
+function syncCollectionGridSections(zeFiber: any, activeMetric: string): void {
 	const rawOverviews = zeFiber?.pendingProps?.appOverviews;
 	if (Array.isArray(rawOverviews)) {
 		activeCollectionAppIds = rawOverviews.map((app: any) => app.appid);
@@ -170,7 +174,10 @@ function syncCollectionGridSections(dropdownInstance: any, activeMetric: string)
 
 function transformSortingDropdownVdom(instance: any, vdom: any): any {
 	const dropdownEl = vdom?.props?.children?.[1];
-	if (!Array.isArray(dropdownEl?.props?.rgOptions)) {
+	const zeFiber = findCollectionGridFiber(instance);
+	// Restrict dropdown injection to the library collection grid so other SortingDropDown consumers (e.g. Settings -> Storage) stay untouched.
+	if (!zeFiber || !Array.isArray(dropdownEl?.props?.rgOptions)) {
+		patchedSortingDropdownInstances.delete(instance);
 		return vdom;
 	}
 
@@ -195,7 +202,7 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 		setTimeout(() => origOnChange({ data: 1 }), 0);
 	}
 
-	syncCollectionGridSections(instance, activeMetric);
+	syncCollectionGridSections(zeFiber, activeMetric);
 
 	dropdownEl.props._sortiumFullOptions = fullOptions;
 	dropdownEl.props._sortiumOrigOnChange = origOnChange;

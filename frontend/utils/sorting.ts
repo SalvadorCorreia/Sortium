@@ -13,38 +13,37 @@ export function filterNativeSortOptions(rgOptions: any[]): any[] {
 
 	const settings = getSettings();
 	const streams = getAvailableStreams();
-	const steamStream = streams.find((stream) => stream.id === 'steam');
-	const isSteamStreamEnabled = settings.enabledStreams['steam'] !== false;
+	const combined: any[] = [];
 
-	const filteredNative = rgOptions
-		.filter((opt) => {
-			if (opt && typeof opt.data === 'number') {
-				if (!isSteamStreamEnabled) return false;
-				return settings.enabledMetrics[`steam_${opt.data}`] !== false;
+	if (settings.enabledStreams.steam !== false) {
+		const steamStream = streams.find((s) => s.id === 'steam');
+		const defaultDirs = new Map(steamStream?.metrics.map((m) => [m.id, m.defaultDir]));
+
+		for (const opt of rgOptions) {
+			const metricId = `steam_${opt?.data}`;
+			if (typeof opt?.data === 'number' && settings.enabledMetrics[metricId] !== false) {
+				combined.push({
+					...opt,
+					defaultDir: defaultDirs.get(metricId) || (opt.data === 1 ? 'asc' : 'desc'),
+				});
 			}
-			return false;
-		})
-		.map((opt) => {
-			const metric = steamStream?.metrics.find((m) => m.id === `steam_${opt.data}`);
-			return {
-				...opt,
-				defaultDir: metric?.defaultDir || (opt.data === 1 ? 'asc' : 'desc'),
-			};
-		});
+		}
+	}
 
-	const customOptions = streams
-		.filter((stream) => !stream.native && settings.enabledStreams[stream.id] !== false)
-		.flatMap((stream) =>
-			stream.metrics
-				.filter((metric) => settings.enabledMetrics[metric.id] !== false)
-				.map((metric) => ({
-					label: `[${stream.tag || stream.name}] ${metric.name}`,
+	for (const stream of streams) {
+		if (stream.native || settings.enabledStreams[stream.id] === false) continue;
+		const tag = stream.tag || stream.name;
+		for (const metric of stream.metrics) {
+			if (settings.enabledMetrics[metric.id] !== false) {
+				combined.push({
+					label: `[${tag}] ${metric.name}`,
 					data: metric.id,
 					defaultDir: metric.defaultDir,
-				})),
-		);
+				});
+			}
+		}
+	}
 
-	const combined = [...filteredNative, ...customOptions];
 	return combined.length > 0 ? combined : [rgOptions[0]];
 }
 
