@@ -51,14 +51,21 @@ function forceUpdateNativeCollectionViews(): void {
 				continue;
 			}
 
-			// Walk up the React Fiber tree to re-render the parent collection view controller (xt -> Fe -> mt)
-			// because React's useState(1) in Re() bails out when eSortBy is already 1.
+			// Walk up the React Fiber tree to re-render the parent collection or showcase controller
+			// because React's useState(1) / SetSortBy(1) bails out when eSortBy is already 1.
 			let curr = inst._reactInternals?.return || inst._reactInternalFiber?.return;
 			let passedGridController = false;
 			let updatedParentController = false;
 			for (let depth = 0; curr && depth < 30; depth++, curr = curr.return) {
-				if (Array.isArray(curr.memoizedProps?.appOverviews)) {
+				if (Array.isArray(curr.memoizedProps?.appOverviews) || Boolean(curr.memoizedProps?.showcase)) {
 					passedGridController = true;
+					// Bust React.memo shallow-equal on showcase header (W0) so parent showcase forceUpdate descends into SortingDropDown.
+					if (curr.memoizedProps?.showcase) {
+						curr.memoizedProps = { ...curr.memoizedProps, _sortiumTick: {} };
+						if (curr.alternate?.memoizedProps) {
+							curr.alternate.memoizedProps = { ...curr.alternate.memoizedProps, _sortiumTick: {} };
+						}
+					}
 				}
 				if (passedGridController && typeof curr.stateNode?.forceUpdate === 'function') {
 					curr.stateNode.forceUpdate();
@@ -75,25 +82,113 @@ function forceUpdateNativeCollectionViews(): void {
 	}
 }
 
-function findCollectionGridFiber(dropdownInstance: any): any {
+type SortingTarget =
+	| { type: 'collection'; zeFiber: any }
+	| { type: 'showcase'; showcase: any; childElements: any[] | null };
+
+function extractShowcaseChildElements(siblingFiber: any): any[] | null {
+	const rawProps = siblingFiber?.pendingProps;
+	const children = Array.isArray(rawProps) ? rawProps : rawProps?.children;
+	if (!Array.isArray(children)) return null;
+	for (const el of children) {
+		if (Array.isArray(el?.props?.childElements)) {
+			return el.props.childElements;
+		}
+	}
+	return null;
+}
+
+function findSortingTarget(dropdownInstance: any): SortingTarget | null {
 	let curr = dropdownInstance?._reactInternals?.return || dropdownInstance?._reactInternalFiber?.return;
 	let fallbackGridFiber: any = null;
+	let fallbackShowcaseTarget: SortingTarget | null = null;
 
 	for (let depth = 0; curr && depth < 10; depth++, curr = curr.return) {
 		// Check both current and workInProgress (alternate) fiber trees for the unprocessed childSections array created in this render pass.
 		const sectionsA = curr.sibling?.pendingProps?.childSections;
 		const sectionsB = curr.alternate?.sibling?.pendingProps?.childSections;
 		if (Array.isArray(sectionsA)) {
-			if (!(sectionsA as any)._sortiumProcessed) return curr.sibling;
+			if (!(sectionsA as any)._sortiumProcessed) return { type: 'collection', zeFiber: curr.sibling };
 			fallbackGridFiber = fallbackGridFiber || curr.sibling;
 		}
 		if (Array.isArray(sectionsB)) {
-			if (!(sectionsB as any)._sortiumProcessed) return curr.alternate.sibling;
+			if (!(sectionsB as any)._sortiumProcessed) return { type: 'collection', zeFiber: curr.alternate.sibling };
 			fallbackGridFiber = fallbackGridFiber || curr.alternate.sibling;
+		}
+
+		// Check for Library Home Showcase header (W0) paired with a showcase grid sibling (childElements).
+		const showcase = curr.pendingProps?.showcase || curr.memoizedProps?.showcase;
+		if (showcase) {
+			const elementsA = extractShowcaseChildElements(curr.sibling);
+			const elementsB = extractShowcaseChildElements(curr.alternate?.sibling);
+			if (elementsA && !(elementsA as any)._sortiumProcessed) {
+				return { type: 'showcase', showcase, childElements: elementsA };
+			}
+			if (elementsB && !(elementsB as any)._sortiumProcessed) {
+				return { type: 'showcase', showcase, childElements: elementsB };
+			}
+			fallbackShowcaseTarget = fallbackShowcaseTarget || {
+				type: 'showcase',
+				showcase,
+				childElements: elementsA || elementsB,
+			};
 		}
 	}
 
-	return fallbackGridFiber;
+	if (fallbackGridFiber) return { type: 'collection', zeFiber: fallbackGridFiber };
+	return fallbackShowcaseTarget;
+}
+
+function syncShowcaseGridElements(showcase: any, childElements: any[] | null, activeMetric: string): void {
+	if (!Array.isArray(childElements) || childElements.length === 0 || (childElements as any)._sortiumProcessed) {
+		return;
+	}
+	Object.defineProperty(childElements, '_sortiumProcessed', { value: true, enumerable: false });
+
+	const headerElements: any[] = [];
+	const appWrappers: { appid: number; sort_as?: string; el: any; innerProps: any }[] = [];
+
+	for (const el of childElements) {
+		const innerProps = el?.props?.children?.props?.children?.props;
+		const app = innerProps?.app;
+		if (typeof app?.appid === 'number') {
+			appWrappers.push({ appid: app.appid, sort_as: app.sort_as, el, innerProps });
+		} else {
+			headerElements.push(el);
+		}
+	}
+
+	if (appWrappers.length === 0) return;
+
+	activeCollectionAppIds = appWrappers.map((w) => w.appid);
+	const visibleAppCount = appWrappers.filter((w) => !w.innerProps.bHidePortrait).length;
+	const settings = getSettings();
+
+	let orderedWrappers = appWrappers;
+	if (activeMetric) {
+		const streamId = activeMetric.split('_')[0] || 'hltb';
+		const idsToQueue = activeCollectionAppIds;
+		setTimeout(() => queueService.enqueue(idsToQueue, streamId), 0);
+
+		orderedWrappers = sortApps(
+			appWrappers,
+			activeMetric,
+			(appId) => queueService.getCachedData(streamId, appId),
+			settings.sortDirection || 'desc',
+		);
+	} else {
+		const eSortBy = showcase?.eSortBy ?? 1;
+		const nativeDefaultDir = eSortBy === 1 ? 'asc' : 'desc';
+		if ((settings.sortDirection || nativeDefaultDir) !== nativeDefaultDir) {
+			orderedWrappers = [...appWrappers].reverse();
+		}
+	}
+
+	orderedWrappers.forEach((w, idx) => {
+		w.innerProps.bHidePortrait = idx >= visibleAppCount;
+	});
+
+	childElements.splice(0, childElements.length, ...headerElements, ...orderedWrappers.map((w) => w.el));
 }
 
 function syncCollectionGridSections(zeFiber: any, activeMetric: string): void {
@@ -174,9 +269,9 @@ function syncCollectionGridSections(zeFiber: any, activeMetric: string): void {
 
 function transformSortingDropdownVdom(instance: any, vdom: any): any {
 	const dropdownEl = vdom?.props?.children?.[1];
-	const zeFiber = findCollectionGridFiber(instance);
-	// Restrict dropdown injection to the library collection grid so other SortingDropDown consumers (e.g. Settings -> Storage) stay untouched.
-	if (!zeFiber || !Array.isArray(dropdownEl?.props?.rgOptions)) {
+	const target = findSortingTarget(instance);
+	// Restrict dropdown injection to library collection grids and home showcases so Settings -> Storage stays untouched.
+	if (!target || !Array.isArray(dropdownEl?.props?.rgOptions)) {
 		patchedSortingDropdownInstances.delete(instance);
 		return vdom;
 	}
@@ -202,7 +297,11 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 		setTimeout(() => origOnChange({ data: 1 }), 0);
 	}
 
-	syncCollectionGridSections(zeFiber, activeMetric);
+	if (target.type === 'collection') {
+		syncCollectionGridSections(target.zeFiber, activeMetric);
+	} else {
+		syncShowcaseGridElements(target.showcase, target.childElements, activeMetric);
+	}
 
 	dropdownEl.props._sortiumFullOptions = fullOptions;
 	dropdownEl.props._sortiumOrigOnChange = origOnChange;
