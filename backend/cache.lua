@@ -1,3 +1,4 @@
+local fs = require("fs")
 local json = require("json")
 local logger = require("logger")
 local millennium = require("millennium")
@@ -19,7 +20,7 @@ local function get_chunk_id(app_id)
 end
 
 local function get_chunk_path(stream_id, chunk_id)
-	return INSTALL_PATH .. "/cache_" .. stream_id .. "_chunk_" .. string.format("%02d", chunk_id) .. ".json"
+	return fs.join(INSTALL_PATH, string.format("cache_%s_chunk_%02d.json", stream_id, chunk_id))
 end
 
 local function load_chunk(stream_id, chunk_id)
@@ -145,7 +146,7 @@ function M.clear_stream(stream_id)
 	for i = 0, NUM_CHUNKS - 1 do
 		os.remove(get_chunk_path(stream_id, i))
 	end
-	os.remove(INSTALL_PATH .. "/cache_" .. stream_id .. ".json")
+	os.remove(fs.join(INSTALL_PATH, "cache_" .. stream_id .. ".json"))
 
 	logger:info("Sortium: Cleared chunked cache for stream " .. stream_id)
 	return true

@@ -23,10 +23,11 @@ During the beginning phases of the `Sortium` development cycle, I faced a pretty
 * **Type Aliases**: `Millennium`
 * **Variables**: `BindPluginSettings()`, `Millennium`, `callable()`
 
-### Lua API: `millennium`
+### Lua API: `millennium` & Built-in Modules (`fs`, `http`, `json`, `logger`)
 
-* **Core Functions**: `ready()`, `version()`, `cmp_version()`, `steam_path()`, `get_install_path()`, `get_plugin_logs()`, `call_frontend_method()`
+* **Core `millennium` Functions**: `ready()`, `version()`, `cmp_version()`, `steam_path()`, `get_install_path()`, `get_plugin_logs()`, `call_frontend_method()`
 * **Browser Injection**: `add_browser_css()`, `add_browser_js()`, `remove_browser_module()`
+* **Filesystem (`require("fs")`)**: `fs.join(...)`, `fs.exists()`, `fs.is_directory()`, `fs.is_file()`, `fs.create_directory()`, `fs.create_directories()`, `fs.remove()`, `fs.remove_all()`, `fs.rename()`, `fs.copy()`, `fs.list()`, `fs.parent_path()`, `fs.filename()`
 * **Internal / Unimplemented**: `change_plugin_status()`, `is_plugin_enabled()`, `__internal_get_build_date()`, `get_user_settings()`, `set_user_settings_key()`
 
 ### Documentation Links
