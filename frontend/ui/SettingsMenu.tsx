@@ -1,4 +1,5 @@
 import {
+	DialogBodyText,
 	DialogButton,
 	DialogControlsSection,
 	DialogControlsSectionHeader,
@@ -6,32 +7,11 @@ import {
 	TextField,
 	Toggle,
 } from '@steambrew/client';
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
 import { queueService } from '../services/queue';
 import { formatProgressFeedback } from '../utils/sorting';
-
-const COMPACT_NUMBER_INPUT_STYLE: CSSProperties = {
-	width: '100%',
-	padding: '6px 8px',
-	background: 'rgba(0, 0, 0, 0.25)',
-	color: 'white',
-	border: '1px solid rgba(255, 255, 255, 0.1)',
-	borderRadius: '4px',
-	outline: 'none',
-	textAlign: 'center',
-	boxSizing: 'border-box',
-	lineHeight: '18px',
-};
-
-const COMPACT_BUTTON_STYLE: CSSProperties = {
-	width: 'auto',
-	padding: '6px 12px',
-	lineHeight: '18px',
-	fontSize: '13px',
-	borderRadius: '4px',
-};
 
 /**
  * Renders the Sortium configuration interface in the Steam client settings.
@@ -188,31 +168,18 @@ export default function SettingsMenu() {
 	};
 
 	return (
-		<div className="sortium-settings">
-			<style>{`
-				.sortium-settings .DialogControlsSection + .DialogControlsSection {
-					margin-top: 24px;
-				}
-				.sortium-settings .DialogControlsSectionHeader {
-					margin-bottom: 8px;
-				}
-				.sortium-settings .sortium-metric-tree > div {
-					padding-inline-start: 12px !important;
-					padding-top: 8px !important;
-					padding-bottom: 8px !important;
-				}
-			`}</style>
+		<>
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Streams & Metrics</DialogControlsSectionHeader>
-				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px', lineHeight: '18px' }}>
+				<DialogBodyText>
 					Select which data sources and specific metrics to display in your sorting menu.
-				</div>
+				</DialogBodyText>
 
 				{streams.map((stream) => {
 					const isStreamEnabled = settings.enabledStreams[stream.id] !== false;
 
 					return (
-						<div key={stream.id} style={{ marginBottom: '20px' }}>
+						<div key={stream.id}>
 							<Field
 								label={stream.name}
 								bottomSeparator={isStreamEnabled ? 'none' : 'standard'}
@@ -223,31 +190,20 @@ export default function SettingsMenu() {
 								/>
 							</Field>
 
-							{isStreamEnabled && (
-								<div
-									className="sortium-metric-tree"
-									style={{
-										marginLeft: '16px',
-										marginTop: '6px',
-										borderLeft: '2px solid rgba(255, 255, 255, 0.1)',
-										paddingLeft: '12px',
-									}}
-								>
-									{stream.metrics.map((metric, idx) => (
-										<Field
-											key={metric.id}
-											label={metric.name}
-											indentLevel={1}
-											bottomSeparator={idx === stream.metrics.length - 1 ? 'standard' : 'none'}
-										>
-											<Toggle
-												value={settings.enabledMetrics[metric.id] !== false}
-												onChange={(checked) => toggleMetric(metric.id, checked)}
-											/>
-										</Field>
-									))}
-								</div>
-							)}
+							{isStreamEnabled &&
+								stream.metrics.map((metric, idx) => (
+									<Field
+										key={metric.id}
+										label={metric.name}
+										indentLevel={1}
+										bottomSeparator={idx === stream.metrics.length - 1 ? 'standard' : 'none'}
+									>
+										<Toggle
+											value={settings.enabledMetrics[metric.id] !== false}
+											onChange={(checked) => toggleMetric(metric.id, checked)}
+										/>
+									</Field>
+								))}
 						</div>
 					);
 				})}
@@ -258,36 +214,34 @@ export default function SettingsMenu() {
 				<Field
 					label="Soft Cache Expiration (Days)"
 					description="Data older than this will be fetched quietly in the background without blocking the UI."
+					childrenLayout="below"
+					inlineWrap="shift-children-below"
 					bottomSeparator="standard"
 				>
-					<div style={{ width: '60px' }}>
-						<TextField
-							mustBeNumeric
-							rangeMin={1}
-							value={String(settings.softCacheDays)}
-							onChange={updateSoftCacheDays}
-							style={COMPACT_NUMBER_INPUT_STYLE}
-						/>
-					</div>
+					<TextField
+						mustBeNumeric
+						rangeMin={1}
+						value={String(settings.softCacheDays)}
+						onChange={updateSoftCacheDays}
+					/>
 				</Field>
 				<Field
 					label="Hard Cache Expiration (Days)"
 					description="Data older than this will be treated as missing and force a UI loading state until fetched."
+					childrenLayout="below"
+					inlineWrap="shift-children-below"
 					bottomSeparator="standard"
 				>
-					<div style={{ width: '60px' }}>
-						<TextField
-							mustBeNumeric
-							rangeMin={1}
-							value={String(settings.hardCacheDays)}
-							onChange={updateHardCacheDays}
-							style={COMPACT_NUMBER_INPUT_STYLE}
-						/>
-					</div>
+					<TextField
+						mustBeNumeric
+						rangeMin={1}
+						value={String(settings.hardCacheDays)}
+						onChange={updateHardCacheDays}
+					/>
 				</Field>
 				<Field label="Force Sync Library" description="Pushes all cached games into the background fetch queue immediately." bottomSeparator="standard">
-					<div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-						<DialogButton onClick={executeForceSync} disabled={isSyncing} style={COMPACT_BUTTON_STYLE}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+						<DialogButton onClick={executeForceSync} disabled={isSyncing} style={{ paddingInline: '10px' }}>
 							{isSyncing ? 'Evaluating...' : 'Force Sync'}
 						</DialogButton>
 						{syncFeedback && (
@@ -299,21 +253,21 @@ export default function SettingsMenu() {
 				</Field>
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
 					{!isConfirmingClear ? (
-						<DialogButton onClick={() => setIsConfirmingClear(true)} style={COMPACT_BUTTON_STYLE}>
+						<DialogButton onClick={() => setIsConfirmingClear(true)} style={{ paddingInline: '10px' }}>
 							Clear Cache
 						</DialogButton>
 					) : (
 						<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-							<span style={{ color: '#ff5c5c', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}>
+							<span style={{ color: '#ff5c5c', fontSize: '12px', fontWeight: 'bold' }}>
 								Are you sure? This will significantly slow down sorting until data is re-fetched.
 							</span>
 							<div style={{ display: 'flex', gap: '8px' }}>
-								<DialogButton onClick={() => setIsConfirmingClear(false)} style={COMPACT_BUTTON_STYLE}>
+								<DialogButton onClick={() => setIsConfirmingClear(false)} style={{ paddingInline: '10px' }}>
 									Cancel
 								</DialogButton>
 								<DialogButton
 									onClick={executeClearCache}
-									style={{ ...COMPACT_BUTTON_STYLE, background: '#d94141', color: 'white', fontWeight: 'bold' }}
+									style={{ paddingInline: '10px' }}
 								>
 									Confirm Delete
 								</DialogButton>
@@ -334,6 +288,6 @@ export default function SettingsMenu() {
 				</Field>
 				<Field label="Last Used Metric" description={settings.lastUsedMetric || 'None'} bottomSeparator="none" />
 			</DialogControlsSection>
-		</div>
+		</>
 	);
 }
