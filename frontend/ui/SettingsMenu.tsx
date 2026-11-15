@@ -179,7 +179,7 @@ export default function SettingsMenu() {
 					const isStreamEnabled = settings.enabledStreams[stream.id] !== false;
 
 					return (
-						<div key={stream.id}>
+						<div key={stream.id} style={{ marginBottom: '24px' }}>
 							<Field
 								label={stream.name}
 								bottomSeparator={isStreamEnabled ? 'none' : 'standard'}
@@ -190,20 +190,22 @@ export default function SettingsMenu() {
 								/>
 							</Field>
 
-							{isStreamEnabled &&
-								stream.metrics.map((metric, idx) => (
-									<Field
-										key={metric.id}
-										label={metric.name}
-										indentLevel={1}
-										bottomSeparator={idx === stream.metrics.length - 1 ? 'standard' : 'none'}
-									>
-										<Toggle
-											value={settings.enabledMetrics[metric.id] !== false}
-											onChange={(checked) => toggleMetric(metric.id, checked)}
-										/>
-									</Field>
-								))}
+							{isStreamEnabled && (
+								<div style={{ marginLeft: '24px', marginTop: '8px', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '16px' }}>
+									{stream.metrics.map((metric) => (
+										<Field
+											key={metric.id}
+											label={metric.name}
+											bottomSeparator="none"
+										>
+											<Toggle
+												value={settings.enabledMetrics[metric.id] !== false}
+												onChange={(checked) => toggleMetric(metric.id, checked)}
+											/>
+										</Field>
+									))}
+								</div>
+							)}
 						</div>
 					);
 				})}
