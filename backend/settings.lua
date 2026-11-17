@@ -14,6 +14,7 @@ M.DEFAULTS = {
 	enabledMetrics = {},
 	sortDirection = "asc",
 	lastUsedMetric = "",
+	showcaseSortStates = {},
 	softCacheDays = 30,
 	hardCacheDays = 120,
 	enableLogging = false,

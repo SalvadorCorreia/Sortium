@@ -17,7 +17,12 @@ const patchedSortingDropdownInstances = new Set<any>();
 let unsubscribeNativeDropdownSettings: (() => void) | null = null;
 let unsubscribeNativeQueueUpdates: (() => void) | null = null;
 let nativeQueueThrottleTimer: ReturnType<typeof setTimeout> | null = null;
-let activeCollectionAppIds: number[] = [];
+
+function hasAnyActiveCustomMetric(): boolean {
+	const settings = getSettings();
+	if (settings.lastUsedMetric) return true;
+	return Object.values(settings.showcaseSortStates || {}).some((state) => Boolean(state?.metric));
+}
 
 function resolveSteamModules(): void {
 	if (!cachedSortingDropdownClass) {
@@ -59,13 +64,6 @@ function forceUpdateNativeCollectionViews(): void {
 			for (let depth = 0; curr && depth < 30; depth++, curr = curr.return) {
 				if (Array.isArray(curr.memoizedProps?.appOverviews) || Boolean(curr.memoizedProps?.showcase)) {
 					passedGridController = true;
-					// Bust React.memo shallow-equal on showcase header (W0) so parent showcase forceUpdate descends into SortingDropDown.
-					if (curr.memoizedProps?.showcase) {
-						curr.memoizedProps = { ...curr.memoizedProps, _sortiumTick: {} };
-						if (curr.alternate?.memoizedProps) {
-							curr.alternate.memoizedProps = { ...curr.alternate.memoizedProps, _sortiumTick: {} };
-						}
-					}
 				}
 				if (passedGridController && typeof curr.stateNode?.forceUpdate === 'function') {
 					curr.stateNode.forceUpdate();
@@ -84,7 +82,7 @@ function forceUpdateNativeCollectionViews(): void {
 
 type SortingTarget =
 	| { type: 'collection'; zeFiber: any }
-	| { type: 'showcase'; showcase: any; childElements: any[] | null };
+	| { type: 'showcase'; showcaseKey: string; showcase: any; childElements: any[] | null };
 
 function extractShowcaseChildElements(siblingFiber: any): any[] | null {
 	const rawProps = siblingFiber?.pendingProps;
@@ -119,16 +117,22 @@ function findSortingTarget(dropdownInstance: any): SortingTarget | null {
 		// Check for Library Home Showcase header (W0) paired with a showcase grid sibling (childElements).
 		const showcase = curr.pendingProps?.showcase || curr.memoizedProps?.showcase;
 		if (showcase) {
+			// Ensure W0 (SimpleMemoComponent) never bails out when parent Showcase (sc) re-renders with a new childElements array.
+			if (curr.pendingProps && typeof curr.pendingProps === 'object') {
+				curr.pendingProps._sortiumBustMemo = true;
+			}
+			const showcaseKey = String(showcase.nShowcaseId ?? showcase.strCollectionId ?? 'default');
 			const elementsA = extractShowcaseChildElements(curr.sibling);
 			const elementsB = extractShowcaseChildElements(curr.alternate?.sibling);
 			if (elementsA && !(elementsA as any)._sortiumProcessed) {
-				return { type: 'showcase', showcase, childElements: elementsA };
+				return { type: 'showcase', showcaseKey, showcase, childElements: elementsA };
 			}
 			if (elementsB && !(elementsB as any)._sortiumProcessed) {
-				return { type: 'showcase', showcase, childElements: elementsB };
+				return { type: 'showcase', showcaseKey, showcase, childElements: elementsB };
 			}
 			fallbackShowcaseTarget = fallbackShowcaseTarget || {
 				type: 'showcase',
+				showcaseKey,
 				showcase,
 				childElements: elementsA || elementsB,
 			};
@@ -139,11 +143,15 @@ function findSortingTarget(dropdownInstance: any): SortingTarget | null {
 	return fallbackShowcaseTarget;
 }
 
-function syncShowcaseGridElements(showcase: any, childElements: any[] | null, activeMetric: string): void {
-	if (!Array.isArray(childElements) || childElements.length === 0 || (childElements as any)._sortiumProcessed) {
-		return;
+function syncShowcaseGridElements(
+	showcase: any,
+	childElements: any[] | null,
+	activeMetric: string,
+	sortDirection: 'asc' | 'desc',
+): number[] {
+	if (!Array.isArray(childElements) || childElements.length === 0) {
+		return [];
 	}
-	Object.defineProperty(childElements, '_sortiumProcessed', { value: true, enumerable: false });
 
 	const headerElements: any[] = [];
 	const appWrappers: { appid: number; sort_as?: string; el: any; innerProps: any }[] = [];
@@ -152,34 +160,36 @@ function syncShowcaseGridElements(showcase: any, childElements: any[] | null, ac
 		const innerProps = el?.props?.children?.props?.children?.props;
 		const app = innerProps?.app;
 		if (typeof app?.appid === 'number') {
+			innerProps._sortiumMetric = activeMetric;
 			appWrappers.push({ appid: app.appid, sort_as: app.sort_as, el, innerProps });
 		} else {
 			headerElements.push(el);
 		}
 	}
 
-	if (appWrappers.length === 0) return;
+	const appIds = appWrappers.map((w) => w.appid);
+	if (appWrappers.length === 0 || (childElements as any)._sortiumProcessed) {
+		return appIds;
+	}
+	Object.defineProperty(childElements, '_sortiumProcessed', { value: true, enumerable: false });
 
-	activeCollectionAppIds = appWrappers.map((w) => w.appid);
 	const visibleAppCount = appWrappers.filter((w) => !w.innerProps.bHidePortrait).length;
-	const settings = getSettings();
 
 	let orderedWrappers = appWrappers;
 	if (activeMetric) {
 		const streamId = activeMetric.split('_')[0] || 'hltb';
-		const idsToQueue = activeCollectionAppIds;
-		setTimeout(() => queueService.enqueue(idsToQueue, streamId), 0);
+		setTimeout(() => queueService.enqueue(appIds, streamId), 0);
 
 		orderedWrappers = sortApps(
 			appWrappers,
 			activeMetric,
 			(appId) => queueService.getCachedData(streamId, appId),
-			settings.sortDirection || 'desc',
+			sortDirection,
 		);
 	} else {
 		const eSortBy = showcase?.eSortBy ?? 1;
 		const nativeDefaultDir = eSortBy === 1 ? 'asc' : 'desc';
-		if ((settings.sortDirection || nativeDefaultDir) !== nativeDefaultDir) {
+		if (sortDirection !== nativeDefaultDir) {
 			orderedWrappers = [...appWrappers].reverse();
 		}
 	}
@@ -189,38 +199,38 @@ function syncShowcaseGridElements(showcase: any, childElements: any[] | null, ac
 	});
 
 	childElements.splice(0, childElements.length, ...headerElements, ...orderedWrappers.map((w) => w.el));
+	return appIds;
 }
 
-function syncCollectionGridSections(zeFiber: any, activeMetric: string): void {
+function syncCollectionGridSections(
+	zeFiber: any,
+	activeMetric: string,
+	sortDirection: 'asc' | 'desc',
+): number[] {
 	const rawOverviews = zeFiber?.pendingProps?.appOverviews;
-	if (Array.isArray(rawOverviews)) {
-		activeCollectionAppIds = rawOverviews.map((app: any) => app.appid);
-	}
+	const appIds: number[] = Array.isArray(rawOverviews) ? rawOverviews.map((app: any) => app.appid) : [];
 
 	const sections: any[] | undefined = zeFiber?.pendingProps?.childSections;
 	if (!Array.isArray(sections) || sections.length === 0 || (sections as any)._sortiumProcessed) {
-		return;
+		return appIds;
 	}
 	Object.defineProperty(sections, '_sortiumProcessed', { value: true, enumerable: false });
 
-	const settings = getSettings();
-
 	if (activeMetric) {
 		const streamId = activeMetric.split('_')[0] || 'hltb';
-		if (activeCollectionAppIds.length > 0) {
+		if (appIds.length > 0) {
 			// Defer queue enqueue out of React's render phase to prevent synchronous listener re-entrancy.
-			const idsToQueue = activeCollectionAppIds;
-			setTimeout(() => queueService.enqueue(idsToQueue, streamId), 0);
+			setTimeout(() => queueService.enqueue(appIds, streamId), 0);
 		}
 
 		const allItems = sections.flatMap((sec: any) => sec?.children || []);
-		if (allItems.length === 0) return;
+		if (allItems.length === 0) return appIds;
 
 		const sortedItems = sortApps(
 			allItems,
 			activeMetric,
 			(appId) => queueService.getCachedData(streamId, appId),
-			settings.sortDirection || 'desc',
+			sortDirection,
 		);
 
 		const template = sections[0];
@@ -253,18 +263,19 @@ function syncCollectionGridSections(zeFiber: any, activeMetric: string): void {
 		}
 
 		sections.splice(0, sections.length, ...nextSections);
-		return;
+		return appIds;
 	}
 
 	const eSortBy = zeFiber?.pendingProps?.eSortBy ?? 1;
 	const nativeDefaultDir = eSortBy === 1 ? 'asc' : 'desc';
-	if ((settings.sortDirection || nativeDefaultDir) !== nativeDefaultDir) {
+	if (sortDirection !== nativeDefaultDir) {
 		sections.reverse();
 		sections.forEach((sec: any, idx: number) => {
 			sec?.children?.reverse?.();
 			if (sec) sec.sectionIndex = idx;
 		});
 	}
+	return appIds;
 }
 
 function transformSortingDropdownVdom(instance: any, vdom: any): any {
@@ -282,10 +293,28 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 	const filteredOptions = filterNativeSortOptions(fullOptions);
 
 	const settings = getSettings();
-	let activeMetric = settings.lastUsedMetric;
+	const isShowcase = target.type === 'showcase';
+	const showcaseState = isShowcase ? settings.showcaseSortStates?.[target.showcaseKey] : undefined;
+
+	let activeMetric = isShowcase ? showcaseState?.metric || '' : settings.lastUsedMetric;
 	if (activeMetric && getAvailableStreams().length > 0 && !filteredOptions.some((opt) => opt.data === activeMetric)) {
 		activeMetric = '';
-		setTimeout(() => void saveSettings({ ...getSettings(), lastUsedMetric: '' }), 0);
+		setTimeout(() => {
+			const current = getSettings();
+			if (isShowcase) {
+				const prev = current.showcaseSortStates?.[target.showcaseKey];
+				if (!prev) return;
+				void saveSettings({
+					...current,
+					showcaseSortStates: {
+						...(current.showcaseSortStates || {}),
+						[target.showcaseKey]: { ...prev, metric: '' },
+					},
+				});
+			} else {
+				void saveSettings({ ...current, lastUsedMetric: '' });
+			}
+		}, 0);
 	}
 
 	const desiredSelection = activeMetric || dropdownEl.props.selectedOption;
@@ -293,15 +322,19 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 		? desiredSelection
 		: filteredOptions[0]?.data;
 
+	const defaultDirection = resolvedSelection === 1 ? 'asc' : 'desc';
+	const activeSortDirection = isShowcase
+		? showcaseState?.sortDirection || defaultDirection
+		: settings.sortDirection || defaultDirection;
+
 	if (activeMetric && dropdownEl.props.selectedOption !== 1 && typeof origOnChange === 'function') {
 		setTimeout(() => origOnChange({ data: 1 }), 0);
 	}
 
-	if (target.type === 'collection') {
-		syncCollectionGridSections(target.zeFiber, activeMetric);
-	} else {
-		syncShowcaseGridElements(target.showcase, target.childElements, activeMetric);
-	}
+	const collectionAppIds =
+		target.type === 'collection'
+			? syncCollectionGridSections(target.zeFiber, activeMetric, activeSortDirection)
+			: syncShowcaseGridElements(target.showcase, target.childElements, activeMetric, activeSortDirection);
 
 	dropdownEl.props._sortiumFullOptions = fullOptions;
 	dropdownEl.props._sortiumOrigOnChange = origOnChange;
@@ -309,11 +342,29 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 	dropdownEl.props.selectedOption = resolvedSelection;
 	dropdownEl.props.onChange = (option: any, ...args: any[]) => {
 		const isCustom = typeof option?.data === 'string';
-		void saveSettings({
-			...getSettings(),
-			lastUsedMetric: isCustom ? option.data : '',
-			sortDirection: option?.defaultDir || (option?.data === 1 ? 'asc' : 'desc'),
-		});
+		const nextMetric = isCustom ? option.data : '';
+		const nextDirection = option?.defaultDir || (option?.data === 1 ? 'asc' : 'desc');
+		const current = getSettings();
+
+		if (isShowcase) {
+			void saveSettings({
+				...current,
+				showcaseSortStates: {
+					...(current.showcaseSortStates || {}),
+					[target.showcaseKey]: {
+						metric: nextMetric,
+						sortDirection: nextDirection,
+					},
+				},
+			});
+		} else {
+			void saveSettings({
+				...current,
+				lastUsedMetric: nextMetric,
+				sortDirection: nextDirection,
+			});
+		}
+
 		if (typeof origOnChange === 'function') {
 			origOnChange(isCustom ? { ...option, data: 1 } : option, ...args);
 		}
@@ -323,26 +374,40 @@ function transformSortingDropdownVdom(instance: any, vdom: any): any {
 		2,
 		vdom.props.children.length - 2,
 		<SortiumDirectionToggle
-			direction={settings.sortDirection || 'asc'}
+			direction={activeSortDirection}
 			className={cachedIconButtonClass}
 			onToggle={() => {
 				const current = getSettings();
-				void saveSettings({
-					...current,
-					sortDirection: (current.sortDirection || 'asc') === 'asc' ? 'desc' : 'asc',
-				});
+				const nextDirection = activeSortDirection === 'asc' ? 'desc' : 'asc';
+				if (isShowcase) {
+					void saveSettings({
+						...current,
+						showcaseSortStates: {
+							...(current.showcaseSortStates || {}),
+							[target.showcaseKey]: {
+								metric: activeMetric,
+								sortDirection: nextDirection,
+							},
+						},
+					});
+				} else {
+					void saveSettings({
+						...current,
+						sortDirection: nextDirection,
+					});
+				}
 			}}
 		/>,
 	);
 
 	if (activeMetric) {
 		const streamId = activeMetric.split('_')[0] || 'hltb';
-		const resolvedCount = activeCollectionAppIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
+		const resolvedCount = collectionAppIds.filter((id) => queueService.hasCacheEntry(streamId, id)).length;
 
 		vdom.props.children.push(
 			<SortiumStreamStatus
 				resolvedCount={resolvedCount}
-				totalCount={activeCollectionAppIds.length}
+				totalCount={collectionAppIds.length}
 				isRateLimited={queueService.getStreamState(streamId) === 'RATE_LIMITED'}
 				retryAfterSeconds={queueService.getRateLimitRemaining(streamId)}
 				className={cachedIconButtonClass}
@@ -403,8 +468,13 @@ export function injectNativeSortingDropdown() {
 		if (cachedCapsuleMemo?.type && cachedSubscriptClass) {
 			activePatches.push(
 				afterPatch(cachedCapsuleMemo, 'type', ([props]: [any], vdom: any) => {
-					const activeMetric = getSettings().lastUsedMetric;
-					// Context 1 (InCollection) restricts subscript badges to collection grid capsules.
+					const activeMetric =
+						typeof props?._sortiumMetric === 'string'
+							? props._sortiumMetric
+							: props?.bShowFriendsAsIcons
+								? ''
+								: getSettings().lastUsedMetric;
+					// Context 1 (InCollection) restricts subscript badges to collection grid and showcase capsules.
 					if (
 						!activeMetric ||
 						props?.context !== 1 ||
@@ -431,10 +501,10 @@ export function injectNativeSortingDropdown() {
 
 		if (!unsubscribeNativeQueueUpdates) {
 			unsubscribeNativeQueueUpdates = queueService.subscribe(() => {
-				if (!getSettings().lastUsedMetric || nativeQueueThrottleTimer) return;
+				if (!hasAnyActiveCustomMetric() || nativeQueueThrottleTimer) return;
 				nativeQueueThrottleTimer = setTimeout(() => {
 					nativeQueueThrottleTimer = null;
-					if (getSettings().lastUsedMetric) {
+					if (hasAnyActiveCustomMetric()) {
 						forceUpdateNativeCollectionViews();
 					}
 				}, 1000);
@@ -470,7 +540,6 @@ export function cleanupInjectors() {
 			} catch {}
 		}
 		patchedSortingDropdownInstances.clear();
-		activeCollectionAppIds = [];
 	} catch (err) {
 		logger.warn('Failed to restore native dropdown patches cleanly:', err);
 	}
