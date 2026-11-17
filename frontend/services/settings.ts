@@ -26,6 +26,14 @@ export interface DataStream {
 }
 
 /**
+ * Per-showcase sorting configuration for Library Home shelves, storing an optional custom Sortium metric ID and direction.
+ */
+export interface ShowcaseSortState {
+	metric: string;
+	sortDirection: 'asc' | 'desc';
+}
+
+/**
  * Defines the user-configurable settings for the Sortium plugin.
  * Persisted to disk via the backend and dictates UI behavior and caching limits.
  */
@@ -34,6 +42,7 @@ export interface PluginSettings {
 	enabledMetrics: Record<string, boolean>;
 	sortDirection: 'asc' | 'desc';
 	lastUsedMetric: string;
+	showcaseSortStates: Record<string, ShowcaseSortState>;
 	softCacheDays: number;
 	hardCacheDays: number;
 	enableLogging: boolean;
@@ -50,6 +59,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	enabledMetrics: {},
 	sortDirection: 'asc',
 	lastUsedMetric: '',
+	showcaseSortStates: {},
 	softCacheDays: 30,
 	hardCacheDays: 120,
 	enableLogging: false,
@@ -106,7 +116,15 @@ export async function initSettings(): Promise<void> {
 		if (settingsJson) {
 			const res: BackendResponse<PluginSettings> = JSON.parse(settingsJson);
 			if (res.success && res.data) {
-				cachedSettings = { ...DEFAULT_SETTINGS, ...res.data };
+				const rawShowcaseStates = res.data.showcaseSortStates;
+				cachedSettings = {
+					...DEFAULT_SETTINGS,
+					...res.data,
+					showcaseSortStates:
+						rawShowcaseStates && typeof rawShowcaseStates === 'object' && !Array.isArray(rawShowcaseStates)
+							? rawShowcaseStates
+							: {},
+				};
 				setLoggingEnabled(cachedSettings.enableLogging);
 			} else {
 				logger.warn('Failed to load settings from backend:', res.error);

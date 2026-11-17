@@ -140,15 +140,17 @@ Before patching any Steam module, three runtime invariants must be respected:
     2. **Library Home Showcase (`syncShowcaseGridElements`)**: Mutates the showcase grid's `childElements` (`Pr`) in place, preserving any leading collection header items, sorting or reversing the capsule wrappers, and updating `bHidePortrait` on each capsule so collapsed single-row showcases display the top `N` sorted portraits.
   - This architecture requires zero `Array.prototype.sort` patching and zero `AppOverview.prototype` mutations.
 
-### Pillar 3: Persistent Selection State
-- **Target**: `PluginSettings.lastUsedMetric` and `PluginSettings.sortDirection` (`frontend/services/settings.ts` & `backend/settings.lua`).
+### Pillar 3: Persistent Selection State (Collection View vs. Library Home Showcases)
+- **Target**: `PluginSettings.lastUsedMetric`, `PluginSettings.sortDirection`, and `PluginSettings.showcaseSortStates` (`frontend/services/settings.ts` & `backend/settings.lua`).
 - **Mechanism**:
-  - `lastUsedMetric` is `""` when a native Steam sort option is active, or the metric ID (e.g., `"hltb_main"`) when a Sortium metric is active.
-  - Persisting `lastUsedMetric` and `sortDirection` through `saveSettings` notifies all subscribed listeners immediately while keeping Steam's own `AppGridDisplaySettings` set to `1` (`Alphabetical`).
+  - **Collection View**: Uses `lastUsedMetric` (`""` when a native Steam sort option `1..11` is active, or a Sortium metric ID such as `"hltb_main"`) and `sortDirection`, matching Steam's shared `AppGridDisplaySettings` scope in `localStorage`.
+  - **Library Home Showcases**: Uses `showcaseSortStates[String(showcase.nShowcaseId)]` (`{ metric, sortDirection }`), matching Steam's per-showcase `ShowcaseStore` scope (`showcases.<nShowcaseId>`) so each shelf on Library Home keeps its own independent sort option and direction.
+  - When a native Steam sort (`1..11`) is active in either scope, Steam's own `Fe()` or `ShowcaseStore.SetSortBy` persists the native `eSortBy` directly; when a Sortium metric is active, Steam's `eSortBy` is set to `1` (`Alphabetical`) to avoid `ComputeChildSectionName` assertion spam and keep Steam Cloud showcase storage valid across devices.
 
 ### Pillar 4: Native Virtual DOM Capsule Badging
 - **Reference Target**: Module `66363`, export `TK` (`React.memo` wrapping MobX observer around internal function `sr`), and CSS class `LibraryItemBoxSubscript`.
 - **Interception Mechanism**:
   - `mod66363.TK` is a `React.memo` object whose `.type` property is `{ writable: true, configurable: true }`, located once and cached at module scope.
-  - Patching `TK` via `afterPatch(cachedCapsuleMemo, 'type', ...)` splices `<div className={cachedSubscriptClass}>{metricText}</div>` directly into `vdom.props.children` at index `1` when `settings.lastUsedMetric` is active and `props.context === 1` (`InCollection`).
+  - `syncShowcaseGridElements` stamps `innerProps._sortiumMetric = activeMetric` onto each showcase capsule's `<TK>` props, while Collection View capsules (`props.bShowFriendsAsIcons === false`) resolve `getSettings().lastUsedMetric`.
+  - Patching `TK` via `afterPatch(cachedCapsuleMemo, 'type', ...)` splices `<div className={cachedSubscriptClass}>{metricText}</div>` directly into `vdom.props.children` at index `1` when an `activeMetric` is present for that capsule's view and `props.context === 1` (`InCollection`).
   - Because `eSortBy` is `1` (`Alphabetical`) when a Sortium metric is active, Steam naturally suppresses native `Last Played` / `Hours Played` subscripts without prop spoofing.
