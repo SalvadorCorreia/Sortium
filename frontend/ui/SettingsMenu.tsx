@@ -1,4 +1,12 @@
-import { Field, ToggleField, DialogControlsSection, DialogControlsSectionHeader } from '@steambrew/client';
+import {
+	DialogBodyText,
+	DialogButton,
+	DialogControlsSection,
+	DialogControlsSectionHeader,
+	Field,
+	TextField,
+	Toggle,
+} from '@steambrew/client';
 import { useState, useEffect } from 'react';
 import { logger } from '../services/logger';
 import { initSettings, getSettings, getAvailableStreams, saveSettings, clearCache, type PluginSettings, type DataStream } from '../services/settings';
@@ -163,29 +171,38 @@ export default function SettingsMenu() {
 		<>
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Data Streams & Metrics</DialogControlsSectionHeader>
-				<div style={{ marginBottom: '16px', color: '#8f98a0', fontSize: '13px' }}>Select which data sources and specific metrics to display in your sorting menu.</div>
+				<DialogBodyText>
+					Select which data sources and specific metrics to display in your sorting menu.
+				</DialogBodyText>
 
 				{streams.map((stream) => {
 					const isStreamEnabled = settings.enabledStreams[stream.id] !== false;
 
 					return (
 						<div key={stream.id} style={{ marginBottom: '24px' }}>
-							<ToggleField
+							<Field
 								label={stream.name}
-								checked={isStreamEnabled}
-								onChange={(checked) => toggleStreamMaster(stream.id, checked)}
 								bottomSeparator={isStreamEnabled ? 'none' : 'standard'}
-							/>
+							>
+								<Toggle
+									value={isStreamEnabled}
+									onChange={(checked) => toggleStreamMaster(stream.id, checked)}
+								/>
+							</Field>
 
 							{isStreamEnabled && (
 								<div style={{ marginLeft: '24px', marginTop: '8px', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '16px' }}>
 									{stream.metrics.map((metric) => (
-										<ToggleField
+										<Field
+											key={metric.id}
 											label={metric.name}
-											checked={settings.enabledMetrics[metric.id] !== false}
-											onChange={(checked) => toggleMetric(metric.id, checked)}
 											bottomSeparator="none"
-										/>
+										>
+											<Toggle
+												value={settings.enabledMetrics[metric.id] !== false}
+												onChange={(checked) => toggleMetric(metric.id, checked)}
+											/>
+										</Field>
 									))}
 								</div>
 							)}
@@ -199,67 +216,38 @@ export default function SettingsMenu() {
 				<Field
 					label="Soft Cache Expiration (Days)"
 					description="Data older than this will be fetched quietly in the background without blocking the UI."
+					childrenLayout="below"
+					inlineWrap="shift-children-below"
 					bottomSeparator="standard"
 				>
-					<input
-						type="number"
-						min="1"
-						value={settings.softCacheDays}
+					<TextField
+						mustBeNumeric
+						rangeMin={1}
+						value={String(settings.softCacheDays)}
 						onChange={updateSoftCacheDays}
-						style={{
-							width: '100%',
-							maxWidth: '60px',
-							padding: '6px 8px',
-							background: 'rgba(0, 0, 0, 0.25)',
-							color: 'white',
-							border: '1px solid rgba(255, 255, 255, 0.1)',
-							borderRadius: '4px',
-							outline: 'none',
-						}}
 					/>
 				</Field>
 				<Field
 					label="Hard Cache Expiration (Days)"
 					description="Data older than this will be treated as missing and force a UI loading state until fetched."
+					childrenLayout="below"
+					inlineWrap="shift-children-below"
 					bottomSeparator="standard"
 				>
-					<input
-						type="number"
-						min="1"
-						value={settings.hardCacheDays}
+					<TextField
+						mustBeNumeric
+						rangeMin={1}
+						value={String(settings.hardCacheDays)}
 						onChange={updateHardCacheDays}
-						style={{
-							width: '100%',
-							maxWidth: '60px',
-							padding: '6px 8px',
-							background: 'rgba(0, 0, 0, 0.25)',
-							color: 'white',
-							border: '1px solid rgba(255, 255, 255, 0.1)',
-							borderRadius: '4px',
-							outline: 'none',
-						}}
 					/>
 				</Field>
 				<Field label="Force Sync Library" description="Pushes all cached games into the background fetch queue immediately." bottomSeparator="standard">
 					<div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-						<button
-							onClick={executeForceSync}
-							disabled={isSyncing}
-							style={{
-								padding: '6px 12px',
-								background: isSyncing ? '#282c34' : '#3d4450',
-								color: isSyncing ? '#8f98a0' : 'white',
-								border: 'none',
-								borderRadius: '4px',
-								cursor: isSyncing ? 'default' : 'pointer',
-								fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-								fontSize: '13px',
-							}}
-						>
+						<DialogButton onClick={executeForceSync} disabled={isSyncing} style={{ paddingInline: '10px' }}>
 							{isSyncing ? 'Evaluating...' : 'Force Sync'}
-						</button>
+						</DialogButton>
 						{syncFeedback && (
-							<span style={{ fontSize: '13px', color: syncFeedback.color, fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif' }}>
+							<span style={{ fontSize: '13px', color: syncFeedback.color }}>
 								{syncFeedback.text}
 							</span>
 						)}
@@ -267,58 +255,24 @@ export default function SettingsMenu() {
 				</Field>
 				<Field label="Clear Local Cache" description="Force the plugin to delete all stored game data." bottomSeparator="standard">
 					{!isConfirmingClear ? (
-						<button
-							onClick={() => setIsConfirmingClear(true)}
-							style={{
-								padding: '6px 12px',
-								background: '#3d4450',
-								color: 'white',
-								border: 'none',
-								borderRadius: '4px',
-								cursor: 'pointer',
-								fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-								fontSize: '13px',
-							}}
-						>
+						<DialogButton onClick={() => setIsConfirmingClear(true)} style={{ paddingInline: '10px' }}>
 							Clear Cache
-						</button>
+						</DialogButton>
 					) : (
 						<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
 							<span style={{ color: '#ff5c5c', fontSize: '12px', fontWeight: 'bold' }}>
 								Are you sure? This will significantly slow down sorting until data is re-fetched.
 							</span>
 							<div style={{ display: 'flex', gap: '8px' }}>
-								<button
-									onClick={() => setIsConfirmingClear(false)}
-									style={{
-										padding: '6px 12px',
-										background: '#3d4450',
-										color: 'white',
-										border: 'none',
-										borderRadius: '4px',
-										cursor: 'pointer',
-										fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-										fontSize: '13px',
-									}}
-								>
+								<DialogButton onClick={() => setIsConfirmingClear(false)} style={{ paddingInline: '10px' }}>
 									Cancel
-								</button>
-								<button
+								</DialogButton>
+								<DialogButton
 									onClick={executeClearCache}
-									style={{
-										padding: '6px 12px',
-										background: '#d94141',
-										color: 'white',
-										border: 'none',
-										borderRadius: '4px',
-										cursor: 'pointer',
-										fontFamily: '"Motiva Sans", Arial, Helvetica, sans-serif',
-										fontSize: '13px',
-										fontWeight: 'bold',
-									}}
+									style={{ paddingInline: '10px' }}
 								>
 									Confirm Delete
-								</button>
+								</DialogButton>
 							</div>
 						</div>
 					)}
@@ -327,13 +281,13 @@ export default function SettingsMenu() {
 
 			<DialogControlsSection>
 				<DialogControlsSectionHeader>Advanced & Debugging</DialogControlsSectionHeader>
-				<ToggleField
+				<Field
 					label="Enable Developer Logging"
 					description="Print debug information to the Millennium developer console."
-					checked={settings.enableLogging}
-					onChange={toggleLogging}
 					bottomSeparator="standard"
-				/>
+				>
+					<Toggle value={settings.enableLogging} onChange={toggleLogging} />
+				</Field>
 				<Field label="Last Used Metric" description={settings.lastUsedMetric || 'None'} bottomSeparator="none" />
 			</DialogControlsSection>
 		</>

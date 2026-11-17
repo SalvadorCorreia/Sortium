@@ -124,18 +124,20 @@ Before patching any Steam module, three runtime invariants must be respected:
 - **Interception Mechanism**:
   Patch `OJ.prototype.render` with `replacePatch` and mutate `dropdownEl.props` (`rgOptions`, `selectedOption`, `onChange`) and `vdom.props.children` in place to filter native options, append Sortium options, and render `<SortiumDirectionToggle />` and `<SortiumStreamStatus />` without `React.cloneElement`.
 
-### Pillar 2: Direct `childSections` Sorting & Sectioning
-- **Reference Target**: Module `71395` (`Fe`, `Ke`, `mt`, `ze`).
+### Pillar 2: Direct `childSections` & Showcase `childElements` Sorting
+- **Reference Targets**:
+  - Collection View: Module `71395` / `89748` (`Fe`, `Ke`, `mt`, `ze`).
+  - Library Home Showcase: Module `50892` (`sc`, `W0`, `hr.i`).
 - **Internal Structure**:
-  In `Fe`, Steam computes `st = mt({ appOverviews, eSortBy, ... })` and returns a `GridWithControls` container with two active children:
-  1. Child 0: `<Ke sortBy={tt} onChange={Mt} />`, which renders `<X />` (`SortingDropDown`).
-  2. Child 2: `<ze childSections={st} ...we eSortBy={tt} />`, which renders the virtualized `AppGridSection` shelves.
+  - In `Fe` (Collection View), Steam computes `st = mt({ appOverviews, eSortBy, ... })` and renders Child 0 (`<Ke>` -> `<X />` `SortingDropDown`) before its sibling Child 2 (`<ze childSections={st} eSortBy={tt} />`).
+  - In `sc` (Library Home Showcase), Steam renders Child 0 (`<W0 showcase={...} />` -> `<X />` `SortingDropDown`) before its sibling Child 1 (`<Fragment>` containing `<hr.i childElements={Pr} />`).
+  - In `Settings -> Storage` (Module `66572`), `SortingDropDown` has neither a `childSections` nor a `showcase` sibling, so `findSortingTarget` returns `null` and leaves the Storage dropdown untouched.
 - **Interception & Reactivity Mechanism**:
-  - Because React traverses fibers depth-first, Child 0 (`Ke` -> `X`) always renders **before** its sibling Child 2 (`ze`) in every render pass of `Fe`.
-  - Patching `OJ.prototype.shouldComponentUpdate` with `replacePatch(..., () => true)` ensures `X` always renders whenever `Fe` renders (even when switching collections while `eSortBy` remains `1`).
-  - During `X`'s render pass, `syncCollectionGridSections` walks up `this._reactInternals` (checking both `current` and `workInProgress` `.alternate` fibers) to locate `zeFiber` (`Ke.sibling`) and mutates `zeFiber.pendingProps.childSections` in place before `ze` renders:
-    1. **Custom Sortium Metric Active**: Flattens all `rt` items across `childSections`, sorts them via `sortApps` (with `sort_as` alphabetical tie-breaking), and groups them into contiguous section objects using `formatMetricValue(..., 'section')` (`Over 100 Hours`, `Over 90%`, `No Data`, etc.).
-    2. **Native Steam Sort Reversed**: Reverses `childSections` and each section's `children` array in place and updates `sectionIndex` when `settings.sortDirection` differs from the native sort's default direction.
+  - Because React traverses fibers depth-first, Child 0 (`Ke` / `W0` -> `X`) always renders **before** its grid sibling in every render pass of `Fe` or `sc`.
+  - Patching `OJ.prototype.shouldComponentUpdate` with `replacePatch(..., () => true)` ensures `X` always renders whenever its parent renders.
+  - During `X`'s render pass, `findSortingTarget` walks up `this._reactInternals` (checking both `current` and `workInProgress` `.alternate` fibers):
+    1. **Collection Grid (`syncCollectionGridSections`)**: Mutates `zeFiber.pendingProps.childSections` in place, either flattening, sorting via `sortApps`, and grouping into native section shelves (`Over 100 Hours`, `Over 90%`, `No Data`) when a Sortium metric is active, or reversing `childSections` and each section's `children` when a native Steam sort is reversed.
+    2. **Library Home Showcase (`syncShowcaseGridElements`)**: Mutates the showcase grid's `childElements` (`Pr`) in place, preserving any leading collection header items, sorting or reversing the capsule wrappers, and updating `bHidePortrait` on each capsule so collapsed single-row showcases display the top `N` sorted portraits.
   - This architecture requires zero `Array.prototype.sort` patching and zero `AppOverview.prototype` mutations.
 
 ### Pillar 3: Persistent Selection State

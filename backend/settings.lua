@@ -1,3 +1,4 @@
+local fs = require("fs")
 local json = require("json")
 local logger = require("logger")
 local millennium = require("millennium")
@@ -5,7 +6,7 @@ local registry = require("streams.registry")
 
 local M = {}
 
-local SETTINGS_PATH = millennium.get_install_path() .. "/settings.json"
+local SETTINGS_PATH = fs.join(millennium.get_install_path(), "settings.json")
 local cached_settings = nil
 
 M.DEFAULTS = {
